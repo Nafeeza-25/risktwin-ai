@@ -1,18 +1,17 @@
-import { useMemo } from 'react'
+import { useState, useMemo } from 'react'
 import {
   X,
   Compass,
-  Users,
-  HelpCircle,
-  ChevronRight,
+  ArrowRight,
+  AlertCircle,
+  Mountain,
+  Waves,
+  Building,
+  Info,
   Send,
   CheckCircle2,
-  Sliders,
-  TrendingUp,
-  TrendingDown,
-  AlertCircle,
 } from 'lucide-react'
-import type { CellProperties, DispatchOrder } from './types'
+import type { CellProperties, DispatchOrder, InspectorTab } from './types'
 import { CATEGORY_COLORS, categoryForScore, topDrivers } from './types'
 import { driverLabel, formatDriverValue, recommend } from './recommendations'
 
@@ -20,6 +19,7 @@ interface Props {
   cell: CellProperties | null
   onClear: () => void
   onSelectDemo?: () => void
+  onNavigateToScenario: () => void
   onOpenDispatch: (cell: CellProperties) => void
   activeDispatches: DispatchOrder[]
 }
@@ -28,13 +28,16 @@ export default function RiskPanel({
   cell,
   onClear,
   onSelectDemo,
+  onNavigateToScenario,
   onOpenDispatch,
   activeDispatches,
 }: Props) {
+  const [activeTab, setActiveTab] = useState<InspectorTab>('overview')
+
   const drivers = useMemo(() => (cell ? topDrivers(cell) : []), [cell])
   const actions = useMemo(() => recommend(drivers), [drivers])
 
-  // Check if this cell has a simulated dispatch in current session
+  // Check if simulated order exists for this cell
   const cellDispatch = useMemo(() => {
     if (!cell) return null
     return activeDispatches.find((d) => d.cell_id === cell.cell_id) ?? null
@@ -42,25 +45,24 @@ export default function RiskPanel({
 
   if (!cell) {
     return (
-      <aside className="risk-panel empty-panel" aria-label="Risk Intelligence panel">
-        <div className="empty-panel-inner">
-          <div className="panel-badge-kicker">CELL INTELLIGENCE</div>
-          <div className="empty-hero-icon" aria-hidden="true">
-            <Compass size={36} />
+      <aside className="inspector-panel empty" aria-label="Location inspector">
+        <div className="inspector-empty-inner">
+          <div className="empty-icon-wrap">
+            <Compass size={32} className="text-blue" />
           </div>
-          <h2 className="empty-title">Select a Grid Cell</h2>
-          <p className="empty-desc">
-            Click any 250m grid cell on the Chennai map to inspect XGBoost flood susceptibility,
-            local Tree SHAP attributions (log-odds), and planning recommendations.
+          <h3 className="empty-heading">Select a location on the map</h3>
+          <p className="empty-body">
+            Click any 250m grid cell across Chennai to inspect its XGBoost flood susceptibility
+            score, Tree SHAP attributions, and planning scenarios.
           </p>
 
           <button
             type="button"
-            className="demo-hotspot-btn"
+            className="btn-select-hotspot"
             onClick={onSelectDemo}
             id="btn-inspect-demo-hotspot"
           >
-            Inspect Priority Hotspot (C0110_0040)
+            Inspect priority hotspot (C0110_0040)
           </button>
         </div>
       </aside>
@@ -72,177 +74,272 @@ export default function RiskPanel({
   const categoryColor = CATEGORY_COLORS[category]
 
   return (
-    <aside className="risk-panel" aria-label={`Risk intelligence for ${cell.cell_id}`}>
-      {/* Selected Zone Header */}
-      <div className="panel-zone-header">
-        <div className="zone-title-block">
-          <div className="zone-label-sub">GRID CELL INSPECTION</div>
-          <div className="zone-name">
-            Cell {cell.cell_id}
-            <span className="zone-sub-id">({cell.validation_region} region)</span>
-          </div>
+    <aside className="inspector-panel" aria-label={`Inspection panel for cell ${cell.cell_id}`}>
+      {/* Header matching Image 1 */}
+      <div className="inspector-header">
+        <div className="inspector-title-block">
+          <span className="inspector-eyebrow">SELECTED LOCATION</span>
+          <h2 className="inspector-title">Cell {cell.cell_id}</h2>
+          <span className="inspector-subtitle">
+            Greater Chennai Corporation · {cell.validation_region} zone
+          </span>
         </div>
-        <div className="zone-actions">
-          <button
-            type="button"
-            className="zone-close-btn"
-            onClick={onClear}
-            title="Deselect cell"
-            aria-label="Deselect cell"
-          >
-            <X size={16} />
-          </button>
-        </div>
+
+        <button
+          type="button"
+          className="btn-close-inspector"
+          onClick={onClear}
+          title="Deselect location"
+          aria-label="Deselect location"
+        >
+          <X size={16} />
+        </button>
       </div>
 
-      <div className="panel-scroll-content">
-        {/* Active Dispatch Notification Banner if simulated order created */}
+      {/* Susceptibility Score Banner matching Image 1 */}
+      <div className="susceptibility-card-banner">
+        <div className="banner-left">
+          <span className="banner-label">Model susceptibility</span>
+          <strong className="banner-score">{score.toFixed(3)}</strong>
+        </div>
+        <span
+          className="banner-badge"
+          style={{
+            backgroundColor: `${categoryColor}18`,
+            color: categoryColor,
+          }}
+        >
+          {category}
+        </span>
+      </div>
+
+      {/* Sub-Tabs matching Image 1: Overview | Drivers | Actions | Exposure */}
+      <div className="inspector-tabs-nav">
+        <button
+          type="button"
+          className={`inspector-tab-btn ${activeTab === 'overview' ? 'active' : ''}`}
+          onClick={() => setActiveTab('overview')}
+        >
+          Overview
+        </button>
+        <button
+          type="button"
+          className={`inspector-tab-btn ${activeTab === 'drivers' ? 'active' : ''}`}
+          onClick={() => setActiveTab('drivers')}
+        >
+          Drivers
+        </button>
+        <button
+          type="button"
+          className={`inspector-tab-btn ${activeTab === 'actions' ? 'active' : ''}`}
+          onClick={() => setActiveTab('actions')}
+        >
+          Actions
+        </button>
+        <button
+          type="button"
+          className={`inspector-tab-btn ${activeTab === 'exposure' ? 'active' : ''}`}
+          onClick={() => setActiveTab('exposure')}
+        >
+          Exposure
+        </button>
+      </div>
+
+      {/* Scrollable Content Body */}
+      <div className="inspector-content-scroll">
+        {/* Active Dispatch Notification Banner if created in session */}
         {cellDispatch && (
-          <div className="active-dispatch-banner">
-            <div className="dispatch-banner-header">
-              <CheckCircle2 size={16} className="text-emerald" />
-              <strong>Simulated Order Recorded in Memory</strong>
-            </div>
-            <div className="dispatch-banner-text">
-              Assigned to <strong>{cellDispatch.team_name}</strong> • Priority: {cellDispatch.priority}
+          <div className="dispatch-session-banner">
+            <CheckCircle2 size={15} className="text-emerald" />
+            <div className="banner-text">
+              <strong>Simulated dispatch recorded in session:</strong> {cellDispatch.team_name}
             </div>
           </div>
         )}
 
-        {/* Flood Susceptibility Score Card (No fake confidence percentage) */}
-        <section className="risk-score-card">
-          <div className="score-card-header">
-            <span className="score-label">Flood Susceptibility Score</span>
-            <span className="uncalibrated-notice-tag">Uncalibrated Output</span>
-          </div>
-
-          <div className="score-value-row">
-            <span className="big-score-val" style={{ color: categoryColor }}>
-              {score.toFixed(3)}
-            </span>
-            <span
-              className="risk-tier-tag"
-              style={{ backgroundColor: `${categoryColor}22`, color: categoryColor }}
-            >
-              {category} Susceptibility
-            </span>
-          </div>
-
-          <div className="score-disclaimer">
-            Model score (0.00 – 1.00) measures feature similarity to the 2015 inundation training label.
-            It is not a calibrated future-flood probability.
-          </div>
-        </section>
-
-        {/* Exposure Data Section (Scientifically credible: no fabricated numbers) */}
-        <section className="exposure-card">
-          <div className="section-eyebrow">
-            <Users size={14} />
-            <span>Exposure Data</span>
-          </div>
-          <div className="exposure-notice-box">
-            <div className="notice-header-row">
-              <AlertCircle size={15} className="notice-icon" />
-              <strong>Exposure data not yet integrated</strong>
+        {/* TAB 1: OVERVIEW matching Image 1 */}
+        {activeTab === 'overview' && (
+          <div className="tab-pane-overview">
+            <div className="overview-question-header">
+              <h3>Why might this area be at risk?</h3>
+              <p>
+                The trained XGBoost model examines local geographic, hydraulic, and environmental features.
+              </p>
             </div>
-            <p className="notice-body-text">
-              Census population, building footprints, critical facilities (hospitals, schools) and
-              arterial roads are not yet linked to this 250m grid. Scores represent physical
-              and land-cover hazard characteristics only, without socioeconomic exposure weighting.
-            </p>
-          </div>
-        </section>
 
-        {/* Why is this cell at high risk? (Tree SHAP in Log-Odds: no fake percentages) */}
-        <section className="shap-drivers-section">
-          <div className="section-eyebrow">
-            <HelpCircle size={14} />
-            <span>Local Model Drivers (Tree SHAP Log-Odds)</span>
-          </div>
+            {/* Top 3 Drivers with icons matching Image 1 */}
+            <div className="overview-driver-cards-list">
+              {drivers.slice(0, 3).map((driver) => {
+                const isUpward = driver.shap >= 0
+                const IconComponent =
+                  driver.name.includes('elevation') || driver.name.includes('slope')
+                    ? Mountain
+                    : driver.name.includes('water') || driver.name.includes('river')
+                    ? Waves
+                    : Building
 
-          <div className="shap-bars-list">
-            {drivers.map((driver) => {
-              const isUpward = driver.shap >= 0
-              const barColor = isUpward ? '#ef4444' : '#10b981'
-              // Scaled bar length relative to a typical max absolute SHAP value of 0.8
-              const barWidth = Math.min(100, Math.max(12, Math.round((Math.abs(driver.shap) / 0.8) * 100)))
-
-              return (
-                <div key={driver.name} className="shap-bar-row">
-                  <div className="shap-bar-top">
-                    <div className="driver-name-block">
-                      <span className="driver-title">{driverLabel(driver.name)}</span>
-                      <span className="driver-val-sub">({formatDriverValue(driver)})</span>
+                return (
+                  <div key={driver.name} className="overview-driver-item">
+                    <div className="driver-icon-circle">
+                      <IconComponent size={16} />
                     </div>
-                    <div className="driver-shap-badge" style={{ color: barColor }}>
-                      {isUpward ? <TrendingUp size={13} /> : <TrendingDown size={13} />}
-                      <span>
-                        {isUpward ? `+${driver.shap.toFixed(3)}` : driver.shap.toFixed(3)} log-odds
+                    <div className="driver-info-wrap">
+                      <div className="driver-title-row">
+                        <strong className="driver-label">{driverLabel(driver.name)}</strong>
+                        <span
+                          className="driver-shap-pill"
+                          style={{ color: isUpward ? '#DC2626' : '#0D9488' }}
+                        >
+                          {isUpward ? `+${driver.shap.toFixed(3)}` : driver.shap.toFixed(3)} log-odds
+                        </span>
+                      </div>
+                      <span className="driver-detail-sub">
+                        Measured input: {formatDriverValue(driver)} · {isUpward ? 'Increases risk' : 'Decreases risk'}
                       </span>
                     </div>
                   </div>
-                  <div className="shap-track">
-                    <div
-                      className="shap-fill"
-                      style={{
-                        width: `${barWidth}%`,
-                        backgroundColor: barColor,
-                      }}
-                    />
+                )
+              })}
+            </div>
+
+            {/* Information Footnote matching Image 1 */}
+            <div className="inspector-info-callout">
+              <Info size={15} className="callout-icon" />
+              <p>
+                These are local <strong>Tree SHAP attributions</strong> in log-odds space from the
+                trained XGBoost model. Output is an uncalibrated susceptibility score, not a
+                future-flood probability.
+              </p>
+            </div>
+
+            {/* Primary CTA Button matching Image 1 */}
+            <div className="inspector-cta-row">
+              <button
+                type="button"
+                className="btn-explore-scenario"
+                onClick={onNavigateToScenario}
+              >
+                <span>Explore green-cover scenario</span>
+                <ArrowRight size={15} />
+              </button>
+            </div>
+
+            {/* Prototype Dispatch Trigger */}
+            <div className="secondary-action-wrap">
+              <button
+                type="button"
+                className="btn-link-dispatch"
+                onClick={() => onOpenDispatch(cell)}
+              >
+                <Send size={13} />
+                <span>Create simulated dispatch directive (Prototype)</span>
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* TAB 2: DETAILED DRIVERS */}
+        {activeTab === 'drivers' && (
+          <div className="tab-pane-drivers">
+            <div className="overview-question-header">
+              <h3>Tree SHAP Model Drivers</h3>
+              <p>
+                Exact marginal contributions to the decision margin (log-odds). Base value: +0.754.
+              </p>
+            </div>
+
+            <div className="drivers-detail-list">
+              {drivers.map((driver) => {
+                const isUpward = driver.shap >= 0
+                const barColor = isUpward ? '#DC2626' : '#0D9488'
+                const barWidth = Math.min(100, Math.max(12, Math.round((Math.abs(driver.shap) / 0.8) * 100)))
+
+                return (
+                  <div key={driver.name} className="driver-detail-card">
+                    <div className="driver-card-header">
+                      <div>
+                        <strong>{driverLabel(driver.name)}</strong>
+                        <span className="driver-raw-val">({formatDriverValue(driver)})</span>
+                      </div>
+                      <span className="driver-logodds-text" style={{ color: barColor }}>
+                        {isUpward ? `+${driver.shap.toFixed(3)}` : driver.shap.toFixed(3)} log-odds
+                      </span>
+                    </div>
+
+                    <div className="driver-progress-track">
+                      <div
+                        className="driver-progress-bar"
+                        style={{ width: `${barWidth}%`, backgroundColor: barColor }}
+                      />
+                    </div>
+
+                    <div className="driver-direction-caption">
+                      {isUpward ? 'Raises model susceptibility' : 'Lowers model susceptibility'}
+                    </div>
                   </div>
-                  <div className="driver-direction-caption">
-                    {isUpward
-                      ? 'Raises model susceptibility estimate'
-                      : 'Lowers model susceptibility estimate'}
+                )
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* TAB 3: ACTIONS */}
+        {activeTab === 'actions' && (
+          <div className="tab-pane-actions">
+            <div className="overview-question-header">
+              <h3>Planning Suggestions</h3>
+              <p>
+                Context-aware recommendations mapped directly to dominant physical drivers.
+              </p>
+            </div>
+
+            <div className="actions-card-list">
+              {actions.map((act) => (
+                <div key={act.id} className="action-card-item">
+                  <div className="action-badge-number">{act.id}</div>
+                  <div className="action-text-block">
+                    <div className="action-heading">{act.title}</div>
+                    <div className="action-description">{act.detail}</div>
+                    <span className="action-reason-tag">{act.reason}</span>
                   </div>
                 </div>
-              )
-            })}
-          </div>
+              ))}
+            </div>
 
-          <div className="shap-method-note">
-            Tree SHAP marginal contribution to the XGBoost decision margin. Output space: log-odds
-            (base value: +0.754).
+            <div className="inspector-info-callout">
+              <Info size={14} className="callout-icon" />
+              <p>
+                Planning suggestions are heuristic and require civil engineering verification. They do
+                not replace hydrodynamic drainage modeling.
+              </p>
+            </div>
           </div>
-        </section>
+        )}
 
-        {/* Recommended Mitigation Actions mapped to physical drivers */}
-        <section className="recommendations-section">
-          <div className="section-eyebrow">
-            <Sliders size={14} />
-            <span>Planning Suggestions (Physical Driver Mapped)</span>
-          </div>
+        {/* TAB 4: EXPOSURE */}
+        {activeTab === 'exposure' && (
+          <div className="tab-pane-exposure">
+            <div className="overview-question-header">
+              <h3>Socioeconomic Exposure</h3>
+              <p>Population, buildings, and critical civic infrastructure.</p>
+            </div>
 
-          <div className="actions-list">
-            {actions.map((act) => (
-              <div key={act.id} className="action-row">
-                <div className="action-num-badge">{act.id}</div>
-                <div className="action-content">
-                  <div className="action-title">{act.title}</div>
-                  <div className="action-detail">{act.detail}</div>
-                </div>
-                <ChevronRight size={14} className="action-arrow" />
+            <div className="exposure-honest-box">
+              <div className="notice-icon-circle">
+                <AlertCircle size={18} className="text-amber" />
               </div>
-            ))}
+              <h4>Exposure data not yet integrated</h4>
+              <p>
+                Census population counts, building polygons, healthcare facilities, schools, and road
+                networks are not currently linked to this 250m grid.
+              </p>
+              <p className="notice-subtext">
+                Current susceptibility scores quantify hazard and physical terrain characteristics
+                only, without socioeconomic exposure weighting.
+              </p>
+            </div>
           </div>
-        </section>
-
-        {/* PROTOTYPE DISPATCH ACTION BUTTON (Explicitly labelled prototype) */}
-        <section className="admin-dispatch-section">
-          <button
-            type="button"
-            className="dispatch-action-btn"
-            onClick={() => onOpenDispatch(cell)}
-            id="btn-intimate-mitigation-team"
-          >
-            <Send size={15} />
-            <span>Simulate Mitigation Dispatch (Prototype)</span>
-          </button>
-          <p className="dispatch-btn-help">
-            Prototype workflow: Orders are created in local browser memory only and are not
-            transmitted to municipal emergency services.
-          </p>
-        </section>
+        )}
       </div>
     </aside>
   )

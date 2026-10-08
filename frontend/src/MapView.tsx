@@ -3,12 +3,31 @@ import * as maplibregl from 'maplibre-gl'
 import type { Map as MapLibreMap, StyleSpecification } from 'maplibre-gl'
 import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url'
 import 'maplibre-gl/dist/maplibre-gl.css'
-import { LocateFixed, Plus, Minus, Layers } from 'lucide-react'
+import { LocateFixed, Plus, Minus, Layers, Search, ChevronDown, Check } from 'lucide-react'
 import type { RiskFilterState, RiskLayer } from './types'
 import { CATEGORY_COLORS, categoryForScore } from './types'
 
 maplibregl.setWorkerUrl(workerUrl)
 
+// Clean, high-legibility light street map matching Image 1
+const LIGHT_STREET_STYLE: StyleSpecification = {
+  version: 8,
+  sources: {
+    carto: {
+      type: 'raster',
+      tiles: [
+        'https://basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
+      ],
+      tileSize: 256,
+      attribution: '© OpenStreetMap contributors, © CARTO',
+    },
+  },
+  layers: [
+    { id: 'carto-layer', type: 'raster', source: 'carto', paint: { 'raster-opacity': 0.88 } },
+  ],
+}
+
+// Satellite imagery for terrain inspection
 const SATELLITE_STYLE: StyleSpecification = {
   version: 8,
   sources: {
@@ -34,27 +53,13 @@ const SATELLITE_STYLE: StyleSpecification = {
   ],
 }
 
-const STREET_STYLE: StyleSpecification = {
-  version: 8,
-  sources: {
-    osm: {
-      type: 'raster',
-      tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'],
-      tileSize: 256,
-      attribution: '© OpenStreetMap contributors',
-    },
-  },
-  layers: [
-    { id: 'streets-layer', type: 'raster', source: 'osm', paint: { 'raster-opacity': 0.85 } },
-  ],
-}
-
 interface Props {
   layer: RiskLayer
   selectedId: string | null
   onSelect: (cellId: string) => void
   showSusceptibilityGrid: boolean
   riskFilters: RiskFilterState
+  onToggleFilterMenu?: () => void
 }
 
 interface HoverInfo {
@@ -80,7 +85,9 @@ export default function MapView({
   const container = useRef<HTMLDivElement>(null)
   const mapRef = useRef<MapLibreMap | null>(null)
   const [hoverInfo, setHoverInfo] = useState<HoverInfo | null>(null)
-  const [basemap, setBasemap] = useState<'satellite' | 'street'>('satellite')
+  const [basemap, setBasemap] = useState<'street' | 'satellite'>('street')
+  const [searchQuery, setSearchQuery] = useState('')
+  const [layerDropdownOpen, setLayerDropdownOpen] = useState(false)
 
   const handleRecenter = useCallback(() => {
     mapRef.current?.fitBounds(CHENNAI_BOUNDS, { padding: 40, duration: 600 })
@@ -94,12 +101,23 @@ export default function MapView({
     mapRef.current?.zoomOut({ duration: 300 })
   }, [])
 
-  // Initialize Map
+  const handleSearch = (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!searchQuery.trim()) return
+    const q = searchQuery.trim().toUpperCase()
+    const match = layer.features.find((f) => f.properties.cell_id.toUpperCase().includes(q))
+    if (match) {
+      onSelect(match.properties.cell_id)
+      setSearchQuery('')
+    }
+  }
+
+  // Initialize MapLibre
   useEffect(() => {
     if (!container.current) return
     const map = new maplibregl.Map({
       container: container.current,
-      style: basemap === 'satellite' ? SATELLITE_STYLE : STREET_STYLE,
+      style: basemap === 'street' ? LIGHT_STREET_STYLE : SATELLITE_STYLE,
       center: [80.24, 13.06],
       zoom: 11.2,
       minZoom: 9,
@@ -134,32 +152,32 @@ export default function MapView({
             0.75,
             CATEGORY_COLORS.Critical,
           ],
-          'fill-opacity': showSusceptibilityGrid ? 0.72 : 0,
+          'fill-opacity': showSusceptibilityGrid ? 0.65 : 0,
         },
       })
 
-      // Cell border grid
+      // Cell border grid lines
       map.addLayer({
         id: 'cell-lines',
         type: 'line',
         source: 'susceptibility',
         paint: {
           'line-color': '#ffffff',
-          'line-width': 0.45,
-          'line-opacity': showSusceptibilityGrid ? 0.35 : 0,
+          'line-width': 0.5,
+          'line-opacity': showSusceptibilityGrid ? 0.45 : 0,
         },
       })
 
-      // Selected Cell Outline Halo
+      // Selected Cell Outline Halo (Primary Blue #2563EB)
       map.addLayer({
         id: 'selected-cell-halo',
         type: 'line',
         source: 'susceptibility',
         filter: ['==', ['get', 'cell_id'], ''],
         paint: {
-          'line-color': '#a855f7',
-          'line-width': 5,
-          'line-opacity': 0.9,
+          'line-color': '#2563EB',
+          'line-width': 4,
+          'line-opacity': 0.85,
         },
       })
 
@@ -171,12 +189,12 @@ export default function MapView({
         filter: ['==', ['get', 'cell_id'], ''],
         paint: {
           'line-color': '#ffffff',
-          'line-width': 2.5,
+          'line-width': 2,
           'line-opacity': 1,
         },
       })
 
-      // Interactive Events
+      // Interactive Click & Hover
       map.on('click', 'susceptibility-fill', (event) => {
         const feature = event.features?.[0]
         const cellId = feature?.properties?.cell_id
@@ -284,118 +302,160 @@ export default function MapView({
       map.setPaintProperty(
         'susceptibility-fill',
         'fill-opacity',
-        showSusceptibilityGrid ? 0.74 : 0
+        showSusceptibilityGrid ? 0.65 : 0
       )
     }
     if (map.getLayer('cell-lines')) {
       map.setPaintProperty(
         'cell-lines',
         'line-opacity',
-        showSusceptibilityGrid ? 0.35 : 0
+        showSusceptibilityGrid ? 0.45 : 0
       )
     }
   }, [showSusceptibilityGrid])
 
-  const selectedFeature = selectedId
-    ? layer.features.find((f) => f.properties.cell_id === selectedId)
-    : null
-
   return (
-    <div className="map-view-wrapper" ref={container}>
-      {/* Floating Map Controls */}
-      <div className="map-floating-controls">
+    <div className="map-canvas-container" ref={container}>
+      {/* Top-Left Floating Controls: Search & Layer Pill matching Image 1 */}
+      <div className="map-floating-top-left">
+        <form onSubmit={handleSearch} className="map-search-pill">
+          <Search size={14} className="map-search-icon" />
+          <input
+            type="text"
+            placeholder="Search a cell ID (e.g. C0110_0040)…"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="map-search-input"
+          />
+        </form>
+
+        <div className="map-layer-dropdown-wrap">
+          <button
+            type="button"
+            className="map-layer-toggle-btn"
+            onClick={() => setLayerDropdownOpen(!layerDropdownOpen)}
+          >
+            <Layers size={14} />
+            <span>Risk layer</span>
+            <ChevronDown size={13} />
+          </button>
+
+          {layerDropdownOpen && (
+            <div className="map-layer-menu">
+              <div className="menu-header">Active Risk Grid</div>
+              <div className="menu-item active">
+                <Check size={14} className="text-blue" />
+                <span>250m Susceptibility (7,227 cells)</span>
+              </div>
+              <div className="menu-divider" />
+              <div className="menu-header">Basemap Style</div>
+              <button
+                type="button"
+                className={`menu-item ${basemap === 'street' ? 'active' : ''}`}
+                onClick={() => {
+                  setBasemap('street')
+                  setLayerDropdownOpen(false)
+                }}
+              >
+                {basemap === 'street' && <Check size={14} className="text-blue" />}
+                <span>Light Streets</span>
+              </button>
+              <button
+                type="button"
+                className={`menu-item ${basemap === 'satellite' ? 'active' : ''}`}
+                onClick={() => {
+                  setBasemap('satellite')
+                  setLayerDropdownOpen(false)
+                }}
+              >
+                {basemap === 'satellite' && <Check size={14} className="text-blue" />}
+                <span>Satellite Imagery</span>
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Top-Right Floating Controls matching Image 1: Zoom & Recenter */}
+      <div className="map-floating-top-right">
         <button
           type="button"
-          className="map-control-btn"
+          className="map-tool-btn"
           onClick={handleZoomIn}
-          title="Zoom In"
-          aria-label="Zoom In"
+          title="Zoom in"
+          aria-label="Zoom in"
         >
           <Plus size={16} />
         </button>
         <button
           type="button"
-          className="map-control-btn"
+          className="map-tool-btn"
           onClick={handleZoomOut}
-          title="Zoom Out"
-          aria-label="Zoom Out"
+          title="Zoom out"
+          aria-label="Zoom out"
         >
           <Minus size={16} />
         </button>
         <button
           type="button"
-          className="map-control-btn"
+          className="map-tool-btn"
           onClick={handleRecenter}
-          title="Reset to Full Chennai View"
-          aria-label="Reset to Full Chennai View"
+          title="Fit Chennai extent"
+          aria-label="Fit Chennai extent"
         >
-          <LocateFixed size={16} />
-        </button>
-        <button
-          type="button"
-          className={`map-control-btn ${basemap === 'satellite' ? 'active-basemap' : ''}`}
-          onClick={() => setBasemap((b) => (b === 'satellite' ? 'street' : 'satellite'))}
-          title="Toggle Satellite / Street Basemap"
-          aria-label="Toggle Basemap"
-        >
-          <Layers size={16} />
+          <LocateFixed size={15} />
         </button>
       </div>
 
-      {/* Selected Cell Marker Tag */}
-      {selectedFeature && (
-        <div className="map-selected-callout">
-          <div className="callout-header">
-            <span className="callout-indicator" />
-            <strong>Cell {selectedFeature.properties.cell_id}</strong>
+      {/* Bottom-Left Floating Legend matching Image 1 */}
+      <div className="map-floating-legend">
+        <div className="legend-heading">Flood susceptibility</div>
+        <div className="legend-items-list">
+          <div className="legend-row">
+            <span className="legend-circle" style={{ backgroundColor: CATEGORY_COLORS.Critical }} />
+            <span>Critical (&ge; 0.75)</span>
           </div>
-          <div className="callout-score">
-            Susceptibility: <strong>{selectedFeature.properties.susceptibility_score.toFixed(3)}</strong> (
-            {categoryForScore(selectedFeature.properties.susceptibility_score)})
+          <div className="legend-row">
+            <span className="legend-circle" style={{ backgroundColor: CATEGORY_COLORS.High }} />
+            <span>High (0.50 – 0.75)</span>
+          </div>
+          <div className="legend-row">
+            <span className="legend-circle" style={{ backgroundColor: CATEGORY_COLORS.Moderate }} />
+            <span>Moderate (0.25 – 0.50)</span>
+          </div>
+          <div className="legend-row">
+            <span className="legend-circle" style={{ backgroundColor: CATEGORY_COLORS.Low }} />
+            <span>Low (&lt; 0.25)</span>
           </div>
         </div>
-      )}
+      </div>
 
-      {/* Map Legend Overlay matching Image 1 */}
-      <div className="map-legend-overlay">
-        <div className="legend-title">Flood Susceptibility Score (XGBoost)</div>
-        <div className="legend-gradient-bar" />
-        <div className="legend-labels">
-          <span>Low (&lt;0.25)</span>
-          <span>Mod (0.25-0.5)</span>
-          <span>High (0.5-0.75)</span>
-          <span>Critical (&ge;0.75)</span>
-        </div>
-        <div className="legend-scale-bar">
-          <div className="scale-line" />
-          <div className="scale-notches">
-            <span>0</span>
-            <span>2.5</span>
-            <span>5 km</span>
-          </div>
-        </div>
+      {/* Bottom-Right Metadata Stamp matching Image 1 */}
+      <div className="map-floating-meta-stamp">
+        Chennai GCC · 250m metric grid · EPSG:32644
       </div>
 
       {/* Hover Tooltip */}
       {hoverInfo && (
         <div
-          className="map-tooltip"
+          className="map-hover-card"
           style={{
             left: `${hoverInfo.x + 14}px`,
-            top: `${hoverInfo.y - 12}px`,
+            top: `${hoverInfo.y - 10}px`,
           }}
         >
-          <div className="tooltip-cell-id">Cell {hoverInfo.cellId}</div>
-          <div className="tooltip-score">
-            Score: <strong>{hoverInfo.score.toFixed(3)}</strong>
-          </div>
-          <div
-            className="tooltip-badge"
-            style={{
-              backgroundColor: CATEGORY_COLORS[hoverInfo.category] ?? '#0d9488',
-            }}
-          >
-            {hoverInfo.category}
+          <div className="hover-cell-id">Cell {hoverInfo.cellId}</div>
+          <div className="hover-score-row">
+            <span>Score: <strong>{hoverInfo.score.toFixed(3)}</strong></span>
+            <span
+              className="hover-pill"
+              style={{
+                backgroundColor: `${CATEGORY_COLORS[hoverInfo.category]}18`,
+                color: CATEGORY_COLORS[hoverInfo.category],
+              }}
+            >
+              {hoverInfo.category}
+            </span>
           </div>
         </div>
       )}

@@ -70,7 +70,9 @@ export interface DispatchOrder {
   notes: string
 }
 
-export type ActiveNavTab = 'dashboard' | 'analysis' | 'planner' | 'simulator' | 'reports'
+export type ActiveNavTab = 'map' | 'evidence' | 'scenario' | 'methods' | 'dispatch'
+
+export type InspectorTab = 'overview' | 'drivers' | 'actions' | 'exposure'
 
 export interface RiskFilterState {
   critical: boolean
@@ -80,11 +82,11 @@ export interface RiskFilterState {
 }
 
 export const CATEGORY_COLORS: Record<string, string> = {
-  Low: '#10b981',        // Emerald/Green (< 0.25)
-  Moderate: '#eab308',   // Yellow (0.25 - 0.50)
-  High: '#f97316',       // Orange (0.50 - 0.75)
-  Critical: '#ef4444',   // Red (>= 0.75)
-  'Very High': '#ef4444',
+  Low: '#0D9488',        // Teal (< 0.25)
+  Moderate: '#D97706',   // Amber (0.25 - 0.50)
+  High: '#EA580C',       // Orange (0.50 - 0.75)
+  Critical: '#DC2626',   // Crimson (>= 0.75)
+  'Very High': '#DC2626',
 }
 
 export function categoryForScore(score: number): 'Low' | 'Moderate' | 'High' | 'Critical' {
