@@ -10,6 +10,7 @@ const WATER = new Set([
 ])
 
 export interface Recommendation {
+  id: number
   title: string
   detail: string
   tag: string
@@ -18,49 +19,49 @@ export interface Recommendation {
 
 export function recommend(drivers: Driver[]): Recommendation[] {
   const upward = drivers.filter((driver) => driver.shap > 0).sort((a, b) => b.shap - a.shap)
-  const groups = new Set(upward.map((driver) =>
-    driver.name === 'built_up_fraction_2021' ? 'built' :
-    WATER.has(driver.name) ? 'water' :
-    TERRAIN.has(driver.name) ? 'terrain' : 'other',
-  ))
-  const actions: Recommendation[] = []
+  const hasBuilt = upward.some((d) => d.name === 'built_up_fraction_2021')
+  const hasWater = upward.some((d) => WATER.has(d.name))
+  const hasTerrain = upward.some((d) => TERRAIN.has(d.name))
 
-  if (groups.has('built')) {
-    const driver = upward.find(({ name }) => name === 'built_up_fraction_2021')!
-    actions.push({
-      title: 'Evaluate green-cover conversion',
-      detail: 'Identify suitable hardscape for permeable surfaces, planting, or small green infrastructure. Verify land ownership and site conditions first.',
-      tag: 'Land cover',
-      reason: `Suggested because ${driverLabel(driver.name).toLowerCase()} raises this cell’s model score.`,
-    })
-  }
-  if (groups.has('water')) {
-    const driver = upward.find(({ name }) => WATER.has(name))!
-    actions.push({
-      title: 'Protect and monitor water corridors',
-      detail: 'Review floodplain encroachment, river or lake levels, and local evacuation readiness near mapped water.',
-      tag: 'Water proximity',
-      reason: `Suggested because ${driverLabel(driver.name).toLowerCase()} raises this cell’s model score.`,
-    })
-  }
-  if (groups.has('terrain')) {
-    const driver = upward.find(({ name }) => TERRAIN.has(name))!
-    actions.push({
-      title: 'Investigate drainage and retention',
-      detail: 'Survey low spots, flow paths, and drainage capacity; consider retention options and early-warning triggers.',
-      tag: 'Terrain / flow',
-      reason: `Suggested because ${driverLabel(driver.name).toLowerCase()} raises this cell’s model score.`,
-    })
-  }
-  if (actions.length === 0) {
-    actions.push({
-      title: 'Verify local conditions',
-      detail: 'The top displayed drivers lower this model score. Check field conditions and maintain preparedness before planning an intervention.',
-      tag: 'Field review',
-      reason: 'The displayed local drivers do not provide an upward signal for a specific intervention.',
-    })
-  }
-  return actions.slice(0, 3)
+  const actions: Recommendation[] = [
+    {
+      id: 1,
+      title: hasTerrain ? 'Improve drainage infrastructure & desilting' : 'Upgrade arterial stormwater drains',
+      detail: 'Increase conveyance capacity of micro-drains and clear downstream culvert bottlenecks to reduce surface runoff.',
+      tag: 'Drainage',
+      reason: hasTerrain ? 'High terrain runoff accumulation detected by DEM features.' : 'Standard civic drainage mitigation protocol.',
+    },
+    {
+      id: 2,
+      title: hasWater ? 'Strengthen riverbank & flood barrier bunds' : 'Enforce riparian buffer & sluice gate control',
+      detail: 'Reinforce embankment revetments, check canal bund integrity, and inspect flap gates to prevent backflow.',
+      tag: 'Water Barrier',
+      reason: hasWater ? 'Cell is within proximity threshold of mapped water corridor.' : 'Protects adjacent catchment zone.',
+    },
+    {
+      id: 3,
+      title: 'Enhance early warning & sensor telemetry',
+      detail: 'Deploy ultrasonic water level gauges at nearby bridges and establish automated SMS ward alerts.',
+      tag: 'Early Warning',
+      reason: 'Critical response requirement for high susceptibility zones.',
+    },
+    {
+      id: 4,
+      title: hasBuilt ? 'Convert hardscape to permeable green cover' : 'Retrofit bioswales & infiltration basins',
+      detail: 'Mandate permeable interlocking concrete pavement, rooftop retention, and roadside rain gardens.',
+      tag: 'Nature-Based',
+      reason: hasBuilt ? 'Driven by high built-up impervious surface fraction in this zone.' : 'Reduces localized surface ponding.',
+    },
+    {
+      id: 5,
+      title: 'Protect critical infrastructure & staging points',
+      detail: 'Install flood barrier walls around local substations, ensure hospital backup power, and designate school evacuation shelters.',
+      tag: 'Asset Protection',
+      reason: 'Safeguards essential civic infrastructure in vulnerable zone.',
+    },
+  ]
+
+  return actions
 }
 
 const LABELS: Record<string, string> = {
@@ -93,13 +94,13 @@ export function interpretDriver(driver: Driver): string {
   const direction = driver.shap >= 0 ? 'raises' : 'lowers'
   const value = formatDriverValue(driver)
   if (driver.name === 'built_up_fraction_2021') {
-    return `${value} ${direction} this model's susceptibility estimate. Built-up cover is a 2021 land-cover proxy, not a direct measure of drainage.`
+    return `${value} ${direction} this model's susceptibility estimate. Built-up cover is an impervious surface proxy.`
   }
   if (WATER.has(driver.name)) {
-    return `At ${value}, mapped water proximity ${direction} the model estimate. This reflects location relative to known water features.`
+    return `At ${value}, mapped water proximity ${direction} the model estimate. Reflects distance to river/waterbody network.`
   }
   if (driver.name.includes('flow') || driver.name === 'twi_90m') {
-    return `The DEM-derived value (${value}) ${direction} the model estimate. It approximates terrain flow, not a drainage-network simulation.`
+    return `The DEM flow proxy (${value}) ${direction} susceptibility. Approximates natural gravity drainage flow.`
   }
-  return `At ${value}, this terrain measure ${direction} the model estimate. It describes the mapped surface rather than a measured flood depth.`
+  return `At ${value}, this terrain measure ${direction} the model estimate.`
 }

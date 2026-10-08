@@ -3,11 +3,38 @@ import * as maplibregl from 'maplibre-gl'
 import type { Map as MapLibreMap, StyleSpecification } from 'maplibre-gl'
 import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url'
 import 'maplibre-gl/dist/maplibre-gl.css'
-import { LocateFixed, Plus, Minus } from 'lucide-react'
-import type { RiskCategory, RiskLayer } from './types'
+import { LocateFixed, Plus, Minus, Layers } from 'lucide-react'
+import type { LayerToggleState, RiskFilterState, RiskLayer } from './types'
 import { CATEGORY_COLORS, categoryForScore } from './types'
 
-const BASE_STYLE: StyleSpecification = {
+maplibregl.setWorkerUrl(workerUrl)
+
+const SATELLITE_STYLE: StyleSpecification = {
+  version: 8,
+  sources: {
+    satellite: {
+      type: 'raster',
+      tiles: [
+        'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+      ],
+      tileSize: 256,
+      attribution: '© Esri, Maxar, Earthstar Geographics',
+    },
+    labels: {
+      type: 'raster',
+      tiles: [
+        'https://services.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}',
+      ],
+      tileSize: 256,
+    },
+  },
+  layers: [
+    { id: 'satellite-layer', type: 'raster', source: 'satellite', paint: { 'raster-opacity': 0.95 } },
+    { id: 'labels-layer', type: 'raster', source: 'labels', paint: { 'raster-opacity': 0.85 } },
+  ],
+}
+
+const STREET_STYLE: StyleSpecification = {
   version: 8,
   sources: {
     osm: {
@@ -18,17 +45,16 @@ const BASE_STYLE: StyleSpecification = {
     },
   },
   layers: [
-    { id: 'paper', type: 'background', paint: { 'background-color': '#eef3f5' } },
-    { id: 'streets', type: 'raster', source: 'osm', paint: { 'raster-opacity': 0.72 } },
+    { id: 'streets-layer', type: 'raster', source: 'osm', paint: { 'raster-opacity': 0.85 } },
   ],
 }
-
-maplibregl.setWorkerUrl(workerUrl)
 
 interface Props {
   layer: RiskLayer
   selectedId: string | null
   onSelect: (cellId: string) => void
+  layerToggles: LayerToggleState
+  riskFilters: RiskFilterState
 }
 
 interface HoverInfo {
@@ -36,18 +62,25 @@ interface HoverInfo {
   y: number
   cellId: string
   score: number
-  category: RiskCategory
+  category: string
 }
 
 const CHENNAI_BOUNDS: [[number, number], [number, number]] = [
-  [80.135, 12.845],
-  [80.335, 13.24],
+  [80.11, 12.83],
+  [80.35, 13.25],
 ]
 
-export default function MapView({ layer, selectedId, onSelect }: Props) {
+export default function MapView({
+  layer,
+  selectedId,
+  onSelect,
+  layerToggles,
+  riskFilters,
+}: Props) {
   const container = useRef<HTMLDivElement>(null)
   const mapRef = useRef<MapLibreMap | null>(null)
   const [hoverInfo, setHoverInfo] = useState<HoverInfo | null>(null)
+  const [basemap, setBasemap] = useState<'satellite' | 'street'>('satellite')
 
   const handleRecenter = useCallback(() => {
     mapRef.current?.fitBounds(CHENNAI_BOUNDS, { padding: 40, duration: 600 })
@@ -61,13 +94,14 @@ export default function MapView({ layer, selectedId, onSelect }: Props) {
     mapRef.current?.zoomOut({ duration: 300 })
   }, [])
 
+  // Initialize Map
   useEffect(() => {
     if (!container.current) return
     const map = new maplibregl.Map({
       container: container.current,
-      style: BASE_STYLE,
-      center: [80.24, 13.05],
-      zoom: 10.8,
+      style: basemap === 'satellite' ? SATELLITE_STYLE : STREET_STYLE,
+      center: [80.24, 13.06],
+      zoom: 11.2,
       minZoom: 9,
       maxZoom: 17,
       attributionControl: false,
@@ -77,59 +111,85 @@ export default function MapView({ layer, selectedId, onSelect }: Props) {
     map.addControl(new maplibregl.AttributionControl({ compact: true }), 'bottom-right')
 
     map.on('load', () => {
-      map.addSource('susceptibility', { type: 'geojson', data: layer, promoteId: 'cell_id' })
+      map.addSource('susceptibility', {
+        type: 'geojson',
+        data: layer,
+        promoteId: 'cell_id',
+      })
 
+      // Fill Layer for Risk Heat Grid
       map.addLayer({
         id: 'susceptibility-fill',
         type: 'fill',
         source: 'susceptibility',
         paint: {
           'fill-color': [
-            'step', ['get', 'susceptibility_score'],
+            'step',
+            ['get', 'susceptibility_score'],
             CATEGORY_COLORS.Low,
-            0.25, CATEGORY_COLORS.Moderate,
-            0.5, CATEGORY_COLORS.High,
-            0.75, CATEGORY_COLORS['Very High'],
+            0.25,
+            CATEGORY_COLORS.Moderate,
+            0.5,
+            CATEGORY_COLORS.High,
+            0.75,
+            CATEGORY_COLORS.Critical,
           ],
-          'fill-opacity': 0.74,
+          'fill-opacity': layerToggles.floodRisk ? 0.72 : 0,
         },
       })
 
+      // Cell border grid
       map.addLayer({
         id: 'cell-lines',
         type: 'line',
         source: 'susceptibility',
         paint: {
           'line-color': '#ffffff',
-          'line-width': 0.35,
-          'line-opacity': 0.45,
+          'line-width': 0.45,
+          'line-opacity': 0.35,
         },
       })
 
+      // Water Proximity Accent Layer (when waterBodies toggle is on)
+      map.addLayer({
+        id: 'water-proximity-glow',
+        type: 'line',
+        source: 'susceptibility',
+        filter: ['<', ['get', 'driver_1_value'], 500],
+        paint: {
+          'line-color': '#38bdf8',
+          'line-width': 1.5,
+          'line-opacity': layerToggles.waterBodies ? 0.6 : 0,
+        },
+      })
+
+      // Selected Cell Outline Glow
       map.addLayer({
         id: 'selected-cell-halo',
         type: 'line',
         source: 'susceptibility',
         filter: ['==', ['get', 'cell_id'], ''],
         paint: {
-          'line-color': '#ffffff',
-          'line-width': 6,
-          'line-opacity': 0.95,
+          'line-color': '#a855f7',
+          'line-width': 5,
+          'line-opacity': 0.9,
         },
       })
 
+      // Selected Cell Inner Stroke
       map.addLayer({
         id: 'selected-cell',
         type: 'line',
         source: 'susceptibility',
         filter: ['==', ['get', 'cell_id'], ''],
         paint: {
-          'line-color': '#091e30',
-          'line-width': 2.8,
+          'line-color': '#ffffff',
+          'line-width': 2.5,
           'line-opacity': 1,
         },
       })
 
+      // Interactive Events
       map.on('click', 'susceptibility-fill', (event) => {
         const feature = event.features?.[0]
         const cellId = feature?.properties?.cell_id
@@ -171,8 +231,9 @@ export default function MapView({ layer, selectedId, onSelect }: Props) {
       map.remove()
       mapRef.current = null
     }
-  }, [layer, onSelect])
+  }, [basemap, layer, onSelect])
 
+  // Update selected cell highlight
   useEffect(() => {
     const map = mapRef.current
     if (map?.getLayer('selected-cell')) {
@@ -181,29 +242,87 @@ export default function MapView({ layer, selectedId, onSelect }: Props) {
       map.setFilter('selected-cell-halo', filter)
 
       if (selectedId) {
-        const selectedFeature = layer.features.find((f) => f.properties.cell_id === selectedId)
-        if (selectedFeature?.properties) {
+        const feature = layer.features.find((f) => f.properties.cell_id === selectedId)
+        if (feature?.properties?.longitude && feature?.properties?.latitude) {
           map.easeTo({
-            center: [selectedFeature.properties.longitude, selectedFeature.properties.latitude],
+            center: [feature.properties.longitude, feature.properties.latitude],
             duration: 500,
+            zoom: Math.max(map.getZoom(), 12.5),
           })
         }
       }
     }
   }, [selectedId, layer])
 
-  return (
-    <div className="map-shell">
-      <div ref={container} className="map-canvas" aria-label="Interactive map of Chennai flood susceptibility cells" />
+  // Update Risk Filters (Critical, High, Moderate, Low)
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map || !map.getLayer('susceptibility-fill')) return
 
-      {/* Floating map controls */}
-      <div className="map-floating-controls" aria-label="Map navigation controls">
+    const conditions: unknown[] = ['any']
+    if (riskFilters.low) {
+      conditions.push(['<', ['get', 'susceptibility_score'], 0.25])
+    }
+    if (riskFilters.moderate) {
+      conditions.push([
+        'all',
+        ['>=', ['get', 'susceptibility_score'], 0.25],
+        ['<', ['get', 'susceptibility_score'], 0.5],
+      ])
+    }
+    if (riskFilters.high) {
+      conditions.push([
+        'all',
+        ['>=', ['get', 'susceptibility_score'], 0.5],
+        ['<', ['get', 'susceptibility_score'], 0.75],
+      ])
+    }
+    if (riskFilters.critical) {
+      conditions.push(['>=', ['get', 'susceptibility_score'], 0.75])
+    }
+
+    const filterSpec: maplibregl.FilterSpecification =
+      conditions.length > 1 ? (conditions as maplibregl.FilterSpecification) : ['==', '1', '2']
+
+    map.setFilter('susceptibility-fill', filterSpec)
+    map.setFilter('cell-lines', filterSpec)
+  }, [riskFilters])
+
+  // Update Layer Toggles (Flood Risk visibility, Water bodies highlight)
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map) return
+
+    if (map.getLayer('susceptibility-fill')) {
+      map.setPaintProperty(
+        'susceptibility-fill',
+        'fill-opacity',
+        layerToggles.floodRisk ? 0.74 : 0.05
+      )
+    }
+    if (map.getLayer('water-proximity-glow')) {
+      map.setPaintProperty(
+        'water-proximity-glow',
+        'line-opacity',
+        layerToggles.waterBodies ? 0.75 : 0
+      )
+    }
+  }, [layerToggles])
+
+  const selectedFeature = selectedId
+    ? layer.features.find((f) => f.properties.cell_id === selectedId)
+    : null
+
+  return (
+    <div className="map-view-wrapper" ref={container}>
+      {/* Floating Map Controls */}
+      <div className="map-floating-controls">
         <button
           type="button"
           className="map-control-btn"
           onClick={handleZoomIn}
-          title="Zoom in"
-          aria-label="Zoom in"
+          title="Zoom In"
+          aria-label="Zoom In"
         >
           <Plus size={16} />
         </button>
@@ -211,29 +330,63 @@ export default function MapView({ layer, selectedId, onSelect }: Props) {
           type="button"
           className="map-control-btn"
           onClick={handleZoomOut}
-          title="Zoom out"
-          aria-label="Zoom out"
+          title="Zoom Out"
+          aria-label="Zoom Out"
         >
           <Minus size={16} />
         </button>
-        <div className="map-control-separator" />
         <button
           type="button"
           className="map-control-btn"
           onClick={handleRecenter}
-          title="Reset to Chennai bounds"
-          aria-label="Reset to Chennai bounds"
+          title="Reset to Full Chennai View"
+          aria-label="Reset to Full Chennai View"
         >
           <LocateFixed size={16} />
         </button>
+        <button
+          type="button"
+          className={`map-control-btn ${basemap === 'satellite' ? 'active-basemap' : ''}`}
+          onClick={() => setBasemap((b) => (b === 'satellite' ? 'street' : 'satellite'))}
+          title="Toggle Satellite / Street Basemap"
+          aria-label="Toggle Basemap"
+        >
+          <Layers size={16} />
+        </button>
       </div>
 
-      {/* Map status tag */}
-      <div className="map-top-pill">
-        <span className="pill-dot" />
-        <span className="pill-title">2015 Flood Inundation Benchmark</span>
-        <span className="pill-divider">·</span>
-        <span className="pill-count">{layer.features.length.toLocaleString()} Scored Cells</span>
+      {/* Selected Cell Marker Tag (Image 1 Callout) */}
+      {selectedFeature && (
+        <div className="map-selected-callout">
+          <div className="callout-header">
+            <span className="callout-indicator" />
+            <strong>Cell {selectedFeature.properties.cell_id}</strong>
+          </div>
+          <div className="callout-score">
+            Risk: <strong>{selectedFeature.properties.susceptibility_score.toFixed(2)}</strong> (
+            {categoryForScore(selectedFeature.properties.susceptibility_score)})
+          </div>
+        </div>
+      )}
+
+      {/* Map Legend Overlay matching Image 1 */}
+      <div className="map-legend-overlay">
+        <div className="legend-title">Flood Risk (ML Prediction)</div>
+        <div className="legend-gradient-bar" />
+        <div className="legend-labels">
+          <span>Low</span>
+          <span>Moderate</span>
+          <span>High</span>
+          <span>Critical</span>
+        </div>
+        <div className="legend-scale-bar">
+          <div className="scale-line" />
+          <div className="scale-notches">
+            <span>0</span>
+            <span>2.5</span>
+            <span>5 km</span>
+          </div>
+        </div>
       </div>
 
       {/* Hover Tooltip */}
@@ -244,24 +397,18 @@ export default function MapView({ layer, selectedId, onSelect }: Props) {
             left: `${hoverInfo.x + 14}px`,
             top: `${hoverInfo.y - 12}px`,
           }}
-          role="tooltip"
         >
-          <div className="tooltip-head">
-            <span className="tooltip-id">{hoverInfo.cellId}</span>
-            <span
-              className="tooltip-badge"
-              style={{
-                backgroundColor: `${CATEGORY_COLORS[hoverInfo.category]}22`,
-                color: CATEGORY_COLORS[hoverInfo.category],
-                borderColor: `${CATEGORY_COLORS[hoverInfo.category]}55`,
-              }}
-            >
-              {hoverInfo.category}
-            </span>
-          </div>
+          <div className="tooltip-cell-id">{hoverInfo.cellId}</div>
           <div className="tooltip-score">
-            <span>Score:</span>
-            <strong>{hoverInfo.score.toFixed(3)}</strong>
+            Score: <strong>{hoverInfo.score.toFixed(3)}</strong>
+          </div>
+          <div
+            className="tooltip-badge"
+            style={{
+              backgroundColor: CATEGORY_COLORS[hoverInfo.category] ?? '#0d9488',
+            }}
+          >
+            {hoverInfo.category}
           </div>
         </div>
       )}
