@@ -5,7 +5,6 @@ import type {
   ActiveNavTab,
   CellProperties,
   DispatchOrder,
-  LayerToggleState,
   ModelEvidence,
   RiskFilterState,
   RiskLayer,
@@ -22,14 +21,15 @@ import {
   Printer,
   TrendingDown,
   ArrowRight,
-  Info,
   Clock,
   Activity,
   Play,
   X,
+  AlertCircle,
+  Database,
 } from 'lucide-react'
 
-// Demo cell ID
+// Priority demo cell ID (Very High / Critical risk cell)
 const DEMO_CELL_ID = 'C0110_0040'
 
 export default function App() {
@@ -40,19 +40,8 @@ export default function App() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  // Left Sidebar State
-  const [timePeriod, setTimePeriod] = useState('Next 6 Months (Monsoon)')
-  const [layerToggles, setLayerToggles] = useState<LayerToggleState>({
-    floodRisk: true,
-    historicalFloods: true,
-    waterBodies: true,
-    populationDensity: false,
-    criticalInfrastructure: true,
-    elevationDem: false,
-    landCover: false,
-    rainfallAverage: false,
-    administrativeBoundaries: true,
-  })
+  // Map Controls
+  const [showSusceptibilityGrid, setShowSusceptibilityGrid] = useState(true)
   const [riskFilters, setRiskFilters] = useState<RiskFilterState>({
     critical: true,
     high: true,
@@ -60,39 +49,28 @@ export default function App() {
     low: true,
   })
 
-  // Bottom What-If Simulator State
-  const [mitigationAction, setMitigationAction] = useState('Improve drainage infrastructure')
+  // Bottom What-If Simulator State (Only implemented model transformation)
   const [simIntensity, setSimIntensity] = useState(25)
   const [simulation, setSimulation] = useState<SimulationResult | null>(null)
   const [simulating, setSimulating] = useState(false)
+  const [simulationError, setSimulationError] = useState<string | null>(null)
 
-  // Admin Profile & Dispatch Workflow State
+  // Clear stale simulation result whenever selected cell or intensity changes
+  useEffect(() => {
+    setSimulation(null)
+    setSimulationError(null)
+  }, [selectedId, simIntensity])
+
+  // Admin Profile & Dispatch Workflow State (Explicit prototype in frontend memory)
   const [showAdminModal, setShowAdminModal] = useState(false)
   const [dispatchModalCell, setDispatchModalCell] = useState<CellProperties | null>(null)
-  const [assignedUnit, setAssignedUnit] = useState('GCC Zone 10 Rapid Dewatering Squad #4')
-  const [dispatchPriority, setDispatchPriority] = useState<'Critical / Immediate' | 'High' | 'Normal'>(
-    'Critical / Immediate'
-  )
+  const [assignedUnit, setAssignedUnit] = useState('Field Response Unit A (Simulated)')
+  const [dispatchPriority, setDispatchPriority] = useState<'Immediate' | 'High' | 'Normal'>('Immediate')
   const [dispatchProtocol, setDispatchProtocol] = useState(
-    'Deploy high-capacity mobile dewatering pumps, clear canal culvert bottleneck, and enforce temporary sandbag berms.'
+    'Inspect canal drainage corridor, assess temporary pumping capacity, and review local road access.'
   )
-  const [dispatchNotes, setDispatchNotes] = useState('Urgent: Key primary school & hospital access road in proximity.')
-  const [activeDispatches, setActiveDispatches] = useState<DispatchOrder[]>([
-    {
-      id: 'DISP-GCC-8821',
-      cell_id: 'C0110_0040',
-      zone_name: 'Zone 104, Chennai',
-      risk_score: 0.94,
-      team_name: 'GCC Zone 10 Rapid Dewatering Squad #4',
-      priority: 'Critical / Immediate',
-      protocol: 'Deploy high-capacity mobile dewatering pumps & inspect stormwater outfalls',
-      timestamp: 'Today, 01:15 AM',
-      status: 'Mitigation Active',
-      officer: 'S. Ramanathan, IAS',
-      unitContact: '+91 94451 90024 (VHF Ch-04)',
-      notes: 'Monsoon high-tide alert active; priority dewatering.',
-    },
-  ])
+  const [dispatchNotes, setDispatchNotes] = useState('Simulation test for scenario planning demonstration.')
+  const [activeDispatches, setActiveDispatches] = useState<DispatchOrder[]>([])
 
   // Fetch initial layer & evidence
   useEffect(() => {
@@ -134,9 +112,9 @@ export default function App() {
     )
   }, [layer, selectedId])
 
-  // Category counts and statistics
+  // Category counts and statistics directly from the 7,227 cells
   const stats = useMemo(() => {
-    if (!layer) return { criticalPct: 8, highPct: 16, modPct: 38, lowPct: 38, totalExposedPop: '1,24,000' }
+    if (!layer) return { criticalPct: 0, highPct: 0, modPct: 0, lowPct: 0, totalCells: 0, criticalCount: 0, highCount: 0 }
     let critical = 0
     let high = 0
     let moderate = 0
@@ -157,18 +135,21 @@ export default function App() {
     const lowPct = 100 - criticalPct - highPct - modPct
 
     return {
+      totalCells: total,
+      criticalCount: critical,
+      highCount: high,
       criticalPct,
       highPct,
       modPct,
       lowPct,
-      totalExposedPop: (critical * 3200 + high * 1800).toLocaleString(),
     }
   }, [layer])
 
-  // Run What-If Simulation
+  // Run What-If Simulation via FastAPI /simulate
   const handleRunSimulation = useCallback(
     async (cellIdToSimulate: string) => {
       setSimulating(true)
+      setSimulationError(null)
       try {
         const response = await fetch('/api/simulate', {
           method: 'POST',
@@ -178,11 +159,14 @@ export default function App() {
             intensity: simIntensity / 100,
           }),
         })
-        if (!response.ok) throw new Error('Simulation failed')
+        if (!response.ok) throw new Error(`Simulation failed (${response.status})`)
         const data = (await response.json()) as SimulationResult
+        if (data.cell_id !== cellIdToSimulate) {
+          throw new Error('Simulation response does not match selected cell')
+        }
         setSimulation(data)
       } catch (err) {
-        console.error('Simulation error', err)
+        setSimulationError(err instanceof Error ? err.message : 'Simulation failed')
       } finally {
         setSimulating(false)
       }
@@ -190,28 +174,19 @@ export default function App() {
     [simIntensity]
   )
 
-  // Auto-run simulation on initial load for demo cell
-  useEffect(() => {
-    if (selectedId && !simulation) {
-      handleRunSimulation(selectedId)
-    }
-  }, [selectedId, handleRunSimulation, simulation])
-
-  // Handle Dispatch Submit
+  // Handle Simulated Dispatch Submit
   const handleConfirmDispatch = () => {
     if (!dispatchModalCell) return
     const newOrder: DispatchOrder = {
-      id: `DISP-GCC-${Math.floor(1000 + Math.random() * 9000)}`,
+      id: `SIM-DISP-${Math.floor(1000 + Math.random() * 9000)}`,
       cell_id: dispatchModalCell.cell_id,
-      zone_name: `Zone ${(dispatchModalCell.cell_id.charCodeAt(3) * 7) % 200 + 1}, Chennai`,
+      zone_name: `Cell ${dispatchModalCell.cell_id}`,
       risk_score: dispatchModalCell.susceptibility_score,
       team_name: assignedUnit,
       priority: dispatchPriority,
       protocol: dispatchProtocol,
-      timestamp: 'Just now',
-      status: 'Dispatched',
-      officer: 'S. Ramanathan, IAS (Commissioner Desk)',
-      unitContact: '+91 94451 90038 (Radio VHF-2)',
+      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      status: 'Simulated Order Created',
       notes: dispatchNotes,
     }
 
@@ -221,7 +196,7 @@ export default function App() {
 
   return (
     <div className="app-shell">
-      {/* 1. TOP NAVIGATION BAR matching Image 1 */}
+      {/* 1. TOP NAVIGATION BAR */}
       <header className="app-header">
         <div className="header-brand">
           <div className="brand-logo-mark" aria-hidden="true">
@@ -244,11 +219,11 @@ export default function App() {
             <div className="brand-title">
               RiskTwin <span>AI</span>
             </div>
-            <div className="brand-subtitle">From Risk Prediction to Mitigation Decisions</div>
+            <div className="brand-subtitle">Chennai Flood Susceptibility &amp; Mitigation Decision Support</div>
           </div>
         </div>
 
-        {/* Central Nav Tabs matching Image 1 */}
+        {/* Central Nav Tabs */}
         <nav className="header-nav-tabs" aria-label="Main Navigation">
           <button
             type="button"
@@ -262,14 +237,14 @@ export default function App() {
             className={`nav-tab-btn ${activeTab === 'analysis' ? 'active' : ''}`}
             onClick={() => setActiveTab('analysis')}
           >
-            Risk Analysis
+            Model Evidence
           </button>
           <button
             type="button"
             className={`nav-tab-btn ${activeTab === 'planner' ? 'active' : ''}`}
             onClick={() => setActiveTab('planner')}
           >
-            Mitigation Planner
+            Dispatch Prototype
           </button>
           <button
             type="button"
@@ -283,7 +258,7 @@ export default function App() {
             className={`nav-tab-btn ${activeTab === 'reports' ? 'active' : ''}`}
             onClick={() => setActiveTab('reports')}
           >
-            Reports
+            Technical Summary
           </button>
         </nav>
 
@@ -291,26 +266,26 @@ export default function App() {
         <div className="header-right-tools">
           <div className="location-selector-pill">
             <MapPin size={15} className="location-icon" />
-            <span className="location-name">Chennai, Tamil Nadu</span>
-            <span className="location-badge">200 Wards</span>
+            <span className="location-name">Chennai GCC</span>
+            <span className="location-badge">200 Wards (7,227 Cells)</span>
           </div>
 
           <button
             type="button"
             className="admin-profile-btn"
             onClick={() => setShowAdminModal(true)}
-            title="Open Admin Command & Dispatches"
+            title="Open Simulated Admin Prototype"
             id="btn-admin-profile"
           >
             <div className="admin-avatar">
               <User size={16} />
             </div>
             <div className="admin-meta">
-              <span className="admin-name">S. Ramanathan, IAS</span>
-              <span className="admin-role">Disaster Commissioner</span>
+              <span className="admin-name">Admin (Simulation Mode)</span>
+              <span className="admin-role">Prototype Dispatch Desk</span>
             </div>
             {activeDispatches.length > 0 && (
-              <span className="dispatch-badge-count" title="Active field dispatches">
+              <span className="dispatch-badge-count" title="Simulated orders in session">
                 {activeDispatches.length}
               </span>
             )}
@@ -321,129 +296,61 @@ export default function App() {
       {/* 2. MAIN APPLICATION CONTENT AREA */}
       {activeTab === 'dashboard' && (
         <div className="app-main-layout">
-          {/* LEFT SIDEBAR: Layers, Time Period, Risk Filter matching Image 1 */}
+          {/* LEFT SIDEBAR: Layers, Event Baseline, Risk Filter */}
           <aside className="sidebar-left" aria-label="Map Layer Controls">
             {/* Layers Toggle Section */}
             <div className="sidebar-group">
               <div className="sidebar-group-title">
                 <Layers size={15} />
-                <span>Layers</span>
+                <span>Rendered Layers</span>
               </div>
               <div className="layer-checkbox-list">
                 <label className="checkbox-row">
                   <input
                     type="checkbox"
-                    checked={layerToggles.floodRisk}
-                    onChange={(e) =>
-                      setLayerToggles((t) => ({ ...t, floodRisk: e.target.checked }))
-                    }
+                    checked={showSusceptibilityGrid}
+                    onChange={(e) => setShowSusceptibilityGrid(e.target.checked)}
                   />
                   <span className="checkbox-label">
-                    Flood Risk (ML Prediction) <Info size={12} className="info-icon" />
+                    Flood Susceptibility Grid (7,227 cells)
                   </span>
                 </label>
+              </div>
 
-                <label className="checkbox-row">
-                  <input
-                    type="checkbox"
-                    checked={layerToggles.historicalFloods}
-                    onChange={(e) =>
-                      setLayerToggles((t) => ({ ...t, historicalFloods: e.target.checked }))
-                    }
-                  />
-                  <span className="checkbox-label">Historical Floods (2015 NRSC)</span>
-                </label>
-
-                <label className="checkbox-row">
-                  <input
-                    type="checkbox"
-                    checked={layerToggles.waterBodies}
-                    onChange={(e) =>
-                      setLayerToggles((t) => ({ ...t, waterBodies: e.target.checked }))
-                    }
-                  />
-                  <span className="checkbox-label">Rivers &amp; Water Bodies</span>
-                </label>
-
-                <label className="checkbox-row">
-                  <input
-                    type="checkbox"
-                    checked={layerToggles.populationDensity}
-                    onChange={(e) =>
-                      setLayerToggles((t) => ({ ...t, populationDensity: e.target.checked }))
-                    }
-                  />
-                  <span className="checkbox-label">Population Density</span>
-                </label>
-
-                <label className="checkbox-row">
-                  <input
-                    type="checkbox"
-                    checked={layerToggles.criticalInfrastructure}
-                    onChange={(e) =>
-                      setLayerToggles((t) => ({ ...t, criticalInfrastructure: e.target.checked }))
-                    }
-                  />
-                  <span className="checkbox-label">Critical Infrastructure</span>
-                </label>
-
-                <label className="checkbox-row">
-                  <input
-                    type="checkbox"
-                    checked={layerToggles.elevationDem}
-                    onChange={(e) =>
-                      setLayerToggles((t) => ({ ...t, elevationDem: e.target.checked }))
-                    }
-                  />
-                  <span className="checkbox-label">Elevation (Copernicus DEM)</span>
-                </label>
-
-                <label className="checkbox-row">
-                  <input
-                    type="checkbox"
-                    checked={layerToggles.landCover}
-                    onChange={(e) =>
-                      setLayerToggles((t) => ({ ...t, landCover: e.target.checked }))
-                    }
-                  />
-                  <span className="checkbox-label">Land Use / Land Cover</span>
-                </label>
-
-                <label className="checkbox-row">
-                  <input
-                    type="checkbox"
-                    checked={layerToggles.administrativeBoundaries}
-                    onChange={(e) =>
-                      setLayerToggles((t) => ({ ...t, administrativeBoundaries: e.target.checked }))
-                    }
-                  />
-                  <span className="checkbox-label">Administrative Boundaries (GCC)</span>
-                </label>
+              {/* Informative list of derived feature sources */}
+              <div className="derived-sources-box">
+                <div className="derived-sources-title">
+                  <Database size={13} />
+                  <span>Feature Sources (Aggregated)</span>
+                </div>
+                <ul className="derived-sources-list">
+                  <li>Copernicus GLO-30 DEM (Elevation / Slope)</li>
+                  <li>OpenStreetMap (River &amp; Waterbody Distances)</li>
+                  <li>ESA WorldCover 2021 (Built-Up Fraction)</li>
+                  <li>NRSC 2015 KML (Historical Training Label)</li>
+                </ul>
               </div>
             </div>
 
-            {/* Time Period Section */}
+            {/* Time / Event Reference (Honest static reference) */}
             <div className="sidebar-group">
               <div className="sidebar-group-title">
                 <Calendar size={15} />
-                <span>Time Period</span>
+                <span>Event Reference</span>
               </div>
-              <select
-                className="sidebar-select"
-                value={timePeriod}
-                onChange={(e) => setTimePeriod(e.target.value)}
-              >
-                <option>Next 6 Months (Monsoon)</option>
-                <option>Current Snapshot (Live)</option>
-                <option>2015 Historical Baseline</option>
-              </select>
+              <div className="static-event-box">
+                <span className="event-name">2015 Inundation Baseline (NRSC)</span>
+                <p className="event-note">
+                  Static spatial susceptibility model; dynamic temporal forecasting not integrated.
+                </p>
+              </div>
             </div>
 
-            {/* Risk Level Filter matching Image 1 */}
+            {/* Risk Level Filter (Active filtering on map) */}
             <div className="sidebar-group">
               <div className="sidebar-group-title">
                 <Filter size={15} />
-                <span>Risk Level Filter</span>
+                <span>Susceptibility Score Filter</span>
               </div>
               <div className="risk-filter-list">
                 <label className="filter-chip-row">
@@ -455,7 +362,7 @@ export default function App() {
                     }
                   />
                   <span className="chip-indicator bg-red" />
-                  <span className="filter-chip-name">Critical (0.75 – 1.0)</span>
+                  <span className="filter-chip-name">Critical (&ge; 0.75)</span>
                 </label>
 
                 <label className="filter-chip-row">
@@ -487,20 +394,20 @@ export default function App() {
                     onChange={(e) => setRiskFilters((f) => ({ ...f, low: e.target.checked }))}
                   />
                   <span className="chip-indicator bg-green" />
-                  <span className="filter-chip-name">Low (0 – 0.25)</span>
+                  <span className="filter-chip-name">Low (&lt; 0.25)</span>
                 </label>
               </div>
             </div>
           </aside>
 
-          {/* CENTER VIEW: Interactive Map & Bottom Widgets matching Image 1 */}
+          {/* CENTER VIEW: Interactive Map & Bottom Widgets */}
           <main className="center-map-workspace">
             {layer ? (
               <MapView
                 layer={layer}
                 selectedId={selectedId}
                 onSelect={setSelectedId}
-                layerToggles={layerToggles}
+                showSusceptibilityGrid={showSusceptibilityGrid}
                 riskFilters={riskFilters}
               />
             ) : (
@@ -516,23 +423,22 @@ export default function App() {
               </div>
             )}
 
-            {/* BOTTOM DOCK OVERLAY matching Image 1 */}
+            {/* BOTTOM DOCK OVERLAY */}
             <div className="bottom-dashboard-dock">
-              {/* Left Widget: Risk Statistics (Selected Region) */}
+              {/* Left Widget: Real Grid Distribution Statistics */}
               <div className="dock-widget statistics-widget">
                 <div className="widget-header">
                   <div className="widget-title">
                     <Activity size={14} />
-                    <span>Risk Statistics (Chennai GCC)</span>
+                    <span>Grid Susceptibility Distribution</span>
                   </div>
                 </div>
 
                 <div className="widget-body-stats">
-                  {/* SVG Donut Chart matching Image 1 */}
+                  {/* SVG Donut Chart from real 7,227 cell counts */}
                   <div className="donut-chart-container">
                     <svg viewBox="0 0 100 100" className="donut-svg">
                       <circle cx="50" cy="50" r="38" className="donut-track" />
-                      {/* Critical slice */}
                       <circle
                         cx="50"
                         cy="50"
@@ -541,7 +447,6 @@ export default function App() {
                         strokeDasharray={`${stats.criticalPct * 2.38} 238`}
                         strokeDashoffset="0"
                       />
-                      {/* High slice */}
                       <circle
                         cx="50"
                         cy="50"
@@ -553,55 +458,59 @@ export default function App() {
                     </svg>
                     <div className="donut-center-label">
                       <strong>{stats.criticalPct + stats.highPct}%</strong>
-                      <span>High Risk Area</span>
+                      <span>High / Crit</span>
                     </div>
                   </div>
 
                   <div className="stats-breakdown-col">
                     <div className="stat-pill-row">
                       <span className="legend-dot bg-red" />
-                      <span className="pill-name">Critical</span>
-                      <strong className="pill-val">{stats.criticalPct}%</strong>
+                      <span className="pill-name">Critical:</span>
+                      <strong className="pill-val">
+                        {stats.criticalCount} ({stats.criticalPct}%)
+                      </strong>
                     </div>
                     <div className="stat-pill-row">
                       <span className="legend-dot bg-orange" />
-                      <span className="pill-name">High</span>
-                      <strong className="pill-val">{stats.highPct}%</strong>
+                      <span className="pill-name">High:</span>
+                      <strong className="pill-val">
+                        {stats.highCount} ({stats.highPct}%)
+                      </strong>
                     </div>
                     <div className="stat-pill-row">
                       <span className="legend-dot bg-yellow" />
-                      <span className="pill-name">Moderate</span>
+                      <span className="pill-name">Moderate:</span>
                       <strong className="pill-val">{stats.modPct}%</strong>
                     </div>
                     <div className="stat-pill-row">
                       <span className="legend-dot bg-green" />
-                      <span className="pill-name">Low</span>
+                      <span className="pill-name">Low:</span>
                       <strong className="pill-val">{stats.lowPct}%</strong>
                     </div>
                   </div>
 
                   <div className="stats-summary-col">
                     <div className="summary-metric">
-                      <span className="sub-label">Total Exposed Population</span>
-                      <strong className="main-val">{stats.totalExposedPop}</strong>
+                      <span className="sub-label">Study Extent</span>
+                      <strong className="main-val">{stats.totalCells.toLocaleString()} Metric Cells</strong>
                     </div>
                     <div className="summary-metric">
-                      <span className="sub-label">Critical Infrastructure</span>
-                      <strong className="main-val">12 Hospitals • 28 Schools</strong>
+                      <span className="sub-label">Resolution</span>
+                      <strong className="main-val">250m UTM Zone 44N</strong>
                     </div>
                   </div>
                 </div>
               </div>
 
-              {/* Right Widget: What-If Mitigation Simulator matching Image 1 */}
+              {/* Right Widget: Real What-If Mitigation Simulator (Only implemented feature) */}
               <div className="dock-widget simulator-widget">
                 <div className="widget-header">
                   <div className="widget-title">
                     <Sliders size={14} />
-                    <span>What-If Mitigation Simulator</span>
+                    <span>Green-Cover What-If Scenario</span>
                   </div>
                   <div className="intensity-slider-wrap">
-                    <span className="slider-label">Intensity: {simIntensity}%</span>
+                    <span className="slider-label">Conversion: {simIntensity}%</span>
                     <input
                       type="range"
                       min="10"
@@ -616,74 +525,74 @@ export default function App() {
 
                 <div className="widget-body-sim">
                   <div className="sim-control-row">
-                    <select
-                      className="sim-action-select"
-                      value={mitigationAction}
-                      onChange={(e) => setMitigationAction(e.target.value)}
-                    >
-                      <option>Improve drainage infrastructure</option>
-                      <option>Convert hardscape to permeable green cover</option>
-                      <option>Strengthen riverbank / flood barriers</option>
-                    </select>
+                    <div className="sim-feature-tag">
+                      Target Feature: <code>built_up_fraction_2021</code>
+                    </div>
 
                     <button
                       type="button"
                       className="sim-run-btn"
                       onClick={() => selectedId && handleRunSimulation(selectedId)}
-                      disabled={simulating}
+                      disabled={simulating || !selectedId}
                       id="btn-run-simulation"
                     >
                       {simulating ? <Clock size={14} className="spin" /> : <Play size={14} />}
-                      <span>{simulating ? 'Simulating…' : 'Simulate'}</span>
+                      <span>{simulating ? 'Evaluating…' : 'Run Scenario'}</span>
                     </button>
                   </div>
 
-                  {/* Before & After comparison tiles matching Image 1 */}
-                  <div className="sim-tiles-row">
-                    <div className="sim-tile before-tile">
-                      <span className="tile-title">
-                        Current Modelled Risk ({selectedId ?? 'Zone'})
-                      </span>
-                      <div className="tile-mini-grid bg-grid-red">
-                        <span className="tile-score-badge bg-red">
-                          {selectedCell ? selectedCell.susceptibility_score.toFixed(2) : '0.82'}
+                  {/* Result display: Only shown after genuine API call */}
+                  {simulation ? (
+                    <div className="sim-tiles-row">
+                      <div className="sim-tile before-tile">
+                        <span className="tile-title">Baseline Model Score</span>
+                        <div className="tile-mini-grid bg-grid-red">
+                          <span className="tile-score-badge bg-red">
+                            {simulation.baseline_susceptibility.toFixed(4)}
+                          </span>
+                        </div>
+                      </div>
+
+                      <ArrowRight size={18} className="sim-arrow" />
+
+                      <div className="sim-tile after-tile">
+                        <span className="tile-title">
+                          Altered Input (Cover: {(simulation.scenario_feature_value * 100).toFixed(0)}%)
                         </span>
+                        <div className="tile-mini-grid bg-grid-green">
+                          <span className="tile-score-badge bg-yellow">
+                            {simulation.scenario_susceptibility.toFixed(4)}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="sim-delta-card">
+                        <span className="delta-label">Model Score Delta</span>
+                        <strong className="delta-val text-emerald">
+                          <TrendingDown size={16} />
+                          {simulation.score_change.toFixed(4)}
+                        </strong>
                       </div>
                     </div>
-
-                    <ArrowRight size={18} className="sim-arrow" />
-
-                    <div className="sim-tile after-tile">
-                      <span className="tile-title">Scenario Modelled Risk (After {simIntensity}%)</span>
-                      <div className="tile-mini-grid bg-grid-green">
-                        <span className="tile-score-badge bg-yellow">
-                          {simulation
-                            ? simulation.scenario_susceptibility.toFixed(2)
-                            : selectedCell
-                            ? (selectedCell.susceptibility_score - 0.19).toFixed(2)
-                            : '0.63'}
+                  ) : (
+                    <div className="sim-idle-prompt">
+                      {simulating ? (
+                        <span>Evaluating altered built-up fraction through saved XGBoost model…</span>
+                      ) : simulationError ? (
+                        <span className="text-red">{simulationError}</span>
+                      ) : (
+                        <span>
+                          Select conversion share (10%–50%) and click Run Scenario to evaluate cell {selectedId ?? 'C0110_0040'}.
                         </span>
-                      </div>
+                      )}
                     </div>
-
-                    <div className="sim-delta-card">
-                      <span className="delta-label">Change in modelled risk</span>
-                      <strong className="delta-val text-emerald">
-                        <TrendingDown size={16} />
-                        {simulation
-                          ? `${simulation.score_change.toFixed(2)} (${(
-                              simulation.score_change * 100
-                            ).toFixed(0)} pts)`
-                          : '-0.19 (-19 points)'}
-                      </strong>
-                    </div>
-                  </div>
+                  )}
                 </div>
               </div>
             </div>
           </main>
 
-          {/* RIGHT SIDEBAR: Selected Zone Intelligence & Admin Dispatch matching Image 1 */}
+          {/* RIGHT SIDEBAR: Selected Cell Intelligence */}
           <RiskPanel
             cell={selectedCell}
             onClear={() => setSelectedId(null)}
@@ -694,25 +603,29 @@ export default function App() {
         </div>
       )}
 
-      {/* VIEW 2: RISK ANALYSIS TAB */}
+      {/* VIEW 2: MODEL EVIDENCE TAB (Scientifically verified) */}
       {activeTab === 'analysis' && (
         <div className="tab-fullscreen-container">
           <div className="tab-header-banner">
-            <h2>Explainable Spatial ML Risk Analysis</h2>
+            <h2>Model Evaluation &amp; Spatial Evidence</h2>
             <p>
-              XGBoost decision boundaries, Tree SHAP feature attribution distributions, and geographic
-              holdout validation across northern Chennai.
+              Evaluation on a geographically separated holdout in northern Chennai, with a 500m
+              transition gap to avoid spatial autocorrelation leakage.
             </p>
           </div>
 
           <div className="analysis-grid-cards">
             {evidence && (
               <div className="analysis-card">
-                <h3>Geographic Holdout Validation (Zero-Leakage)</h3>
+                <h3>Geographically Separated Holdout Metrics</h3>
                 <div className="metrics-pill-matrix">
                   <div className="metric-box">
                     <span>ROC-AUC</span>
                     <strong>{evidence.metrics.roc_auc.toFixed(3)}</strong>
+                  </div>
+                  <div className="metric-box">
+                    <span>PR-AUC</span>
+                    <strong>{evidence.metrics.pr_auc_average_precision.toFixed(3)}</strong>
                   </div>
                   <div className="metric-box">
                     <span>Precision</span>
@@ -722,128 +635,169 @@ export default function App() {
                     <span>Recall</span>
                     <strong>{evidence.metrics.recall.toFixed(3)}</strong>
                   </div>
-                  <div className="metric-box">
-                    <span>F1 Score</span>
+                </div>
+                <div className="holdout-stats-row">
+                  <div>
+                    <span>Holdout Cells:</span> <strong>{evidence.holdout_cells.toLocaleString()}</strong>
+                  </div>
+                  <div>
+                    <span>Holdout Flood Prevalence:</span>{' '}
+                    <strong>{(evidence.positive_prevalence * 100).toFixed(1)}%</strong>
+                  </div>
+                  <div>
+                    <span>F1 Score (0.5 threshold):</span>{' '}
                     <strong>{evidence.metrics.f1.toFixed(3)}</strong>
                   </div>
                 </div>
                 <p className="analysis-desc-text">
-                  Evaluated on 1,839 northern cells separated by a 500m transition buffer. This proves
-                  the model does not rely on local spatial autocorrelation memorization.
+                  Model discrimination is moderate (ROC-AUC 0.627). Scores are uncalibrated similarity
+                  metrics to the 2015 mapped inundation footprint, not future-flood probabilities.
                 </p>
               </div>
             )}
 
+            {/* Global SHAP Mean Absolute Values directly from outputs/chennai_shap_summary.json */}
             <div className="analysis-card">
-              <h3>Global Feature Importance (Tree SHAP)</h3>
+              <h3>Global Feature Importance (Tree SHAP Mean |Log-Odds|)</h3>
               <div className="feature-bar-list">
                 <div className="feature-bar-item">
-                  <span>Built-up Hardscape Cover (ESA 10m)</span>
+                  <span>Mean Elevation (Copernicus DEM)</span>
                   <div className="progress-bar">
-                    <div className="progress-fill bg-red" style={{ width: '88%' }} />
+                    <div className="progress-fill bg-red" style={{ width: '100%' }} />
                   </div>
-                  <strong>+0.28 SHAP</strong>
+                  <strong>0.788 log-odds</strong>
                 </div>
                 <div className="feature-bar-item">
-                  <span>Surface Elevation (Copernicus DEM)</span>
+                  <span>River Edge Distance</span>
                   <div className="progress-bar">
-                    <div className="progress-fill bg-orange" style={{ width: '74%' }} />
+                    <div className="progress-fill bg-orange" style={{ width: '41%' }} />
                   </div>
-                  <strong>+0.22 SHAP</strong>
+                  <strong>0.322 log-odds</strong>
                 </div>
                 <div className="feature-bar-item">
-                  <span>Distance to River Network (OSMnx)</span>
+                  <span>Minimum Elevation</span>
                   <div className="progress-bar">
-                    <div className="progress-fill bg-yellow" style={{ width: '61%' }} />
+                    <div className="progress-fill bg-orange" style={{ width: '40%' }} />
                   </div>
-                  <strong>+0.18 SHAP</strong>
+                  <strong>0.319 log-odds</strong>
                 </div>
                 <div className="feature-bar-item">
-                  <span>Terrain Slope Gradient</span>
+                  <span>Built-Up Fraction 2021 (WorldCover)</span>
                   <div className="progress-bar">
-                    <div className="progress-fill bg-green" style={{ width: '45%' }} />
+                    <div className="progress-fill bg-yellow" style={{ width: '31%' }} />
                   </div>
-                  <strong>+0.12 SHAP</strong>
+                  <strong>0.246 log-odds</strong>
+                </div>
+                <div className="feature-bar-item">
+                  <span>Distance to Waterbody</span>
+                  <div className="progress-bar">
+                    <div className="progress-fill bg-yellow" style={{ width: '29%' }} />
+                  </div>
+                  <strong>0.232 log-odds</strong>
+                </div>
+                <div className="feature-bar-item">
+                  <span>Distance to River</span>
+                  <div className="progress-bar">
+                    <div className="progress-fill bg-green" style={{ width: '25%' }} />
+                  </div>
+                  <strong>0.194 log-odds</strong>
                 </div>
               </div>
+              <p className="analysis-desc-text">
+                Computed via Tree SHAP with tree-path-dependent background across the study area.
+                Base value: +0.754 log-odds.
+              </p>
             </div>
           </div>
         </div>
       )}
 
-      {/* VIEW 3: MITIGATION PLANNER TAB */}
+      {/* VIEW 3: DISPATCH PROTOTYPE TAB */}
       {activeTab === 'planner' && (
         <div className="tab-fullscreen-container">
           <div className="tab-header-banner">
-            <h2>Municipal Mitigation Action Planner &amp; Team Roster</h2>
+            <h2>Simulated Dispatch Roster (Frontend Prototype)</h2>
             <p>
-              Priority intervention zones, deployed response teams, and civil engineering investment
-              rankings for Greater Chennai Corporation.
+              Demonstration interface for municipal dispatch concepts. Note: Orders exist in frontend
+              memory during this session only; no persistent external database or civic service is contacted.
             </p>
           </div>
 
           <div className="planner-table-card">
-            <h3>Active Field Dispatches &amp; Response Orders</h3>
-            <div className="dispatch-table-wrap">
-              <table className="dispatch-table">
-                <thead>
-                  <tr>
-                    <th>Order ID</th>
-                    <th>Target Zone</th>
-                    <th>Risk Score</th>
-                    <th>Assigned Response Unit</th>
-                    <th>Priority</th>
-                    <th>Status</th>
-                    <th>Dispatch Time</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {activeDispatches.map((disp) => (
-                    <tr key={disp.id}>
-                      <td>
-                        <strong>{disp.id}</strong>
-                      </td>
-                      <td>{disp.zone_name}</td>
-                      <td>
-                        <span className="badge-risk-table bg-red">
-                          {disp.risk_score.toFixed(2)}
-                        </span>
-                      </td>
-                      <td>{disp.team_name}</td>
-                      <td>
-                        <span className="priority-pill">{disp.priority}</span>
-                      </td>
-                      <td>
-                        <span className="status-pill status-active">{disp.status}</span>
-                      </td>
-                      <td>{disp.timestamp}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+            <div className="table-header-row">
+              <h3>Session Dispatch Directives</h3>
+              <span className="prototype-badge">Prototype / Memory Only</span>
             </div>
+
+            {activeDispatches.length === 0 ? (
+              <div className="empty-dispatches-box">
+                <AlertCircle size={20} />
+                <p>No simulated dispatch orders created in this session.</p>
+                <span>Select a cell on the Dashboard map and click "Simulate Mitigation Dispatch".</span>
+              </div>
+            ) : (
+              <div className="dispatch-table-wrap">
+                <table className="dispatch-table">
+                  <thead>
+                    <tr>
+                      <th>Order ID</th>
+                      <th>Target Cell</th>
+                      <th>Model Score</th>
+                      <th>Assigned Unit</th>
+                      <th>Priority</th>
+                      <th>Status</th>
+                      <th>Created</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {activeDispatches.map((disp) => (
+                      <tr key={disp.id}>
+                        <td>
+                          <strong>{disp.id}</strong>
+                        </td>
+                        <td>{disp.zone_name}</td>
+                        <td>
+                          <span className="badge-risk-table bg-red">
+                            {disp.risk_score.toFixed(3)}
+                          </span>
+                        </td>
+                        <td>{disp.team_name}</td>
+                        <td>
+                          <span className="priority-pill">{disp.priority}</span>
+                        </td>
+                        <td>
+                          <span className="status-pill status-active">{disp.status}</span>
+                        </td>
+                        <td>{disp.timestamp}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
         </div>
       )}
 
-      {/* VIEW 4: WHAT-IF SIMULATOR LAB TAB */}
+      {/* VIEW 4: WHAT-IF SIMULATOR LAB */}
       {activeTab === 'simulator' && (
         <div className="tab-fullscreen-container">
           <div className="tab-header-banner">
-            <h2>Counterfactual Green-Cover Intervention Lab</h2>
+            <h2>Green-Cover What-If Simulation Lab</h2>
             <p>
-              Simulate localized nature-based sponge city interventions: dynamically reducing
-              impervious built-up surface fractions and evaluating XGBoost susceptibility deltas.
+              Tests model sensitivity to converted built-up land cover. Reduces{' '}
+              <code>built_up_fraction_2021</code> by the specified percentage while holding terrain and
+              hydrology features fixed.
             </p>
           </div>
 
           <div className="simulator-lab-grid">
             <div className="lab-control-panel">
               <h3>Simulation Parameters</h3>
-              <p className="lab-subtitle">Target Cell: {selectedId ?? 'C0110_0040'}</p>
+              <p className="lab-subtitle">Active Cell: {selectedId ?? 'C0110_0040'}</p>
 
               <div className="lab-param-group">
-                <label>Hardscape Conversion Intensity</label>
+                <label>Built-Up Hardscape Conversion Share</label>
                 <div className="intensity-buttons">
                   {[10, 20, 30, 40, 50].map((intVal) => (
                     <button
@@ -865,12 +819,12 @@ export default function App() {
                 disabled={simulating}
               >
                 <Play size={16} />
-                <span>Execute Counterfactual Model Run</span>
+                <span>{simulating ? 'Evaluating…' : 'Execute Model Inference'}</span>
               </button>
             </div>
 
             <div className="lab-results-panel">
-              <h3>Live Model Inference Output</h3>
+              <h3>Live FastAPI Model Response</h3>
               {simulation ? (
                 <div className="lab-output-grid">
                   <div className="output-stat">
@@ -884,21 +838,25 @@ export default function App() {
                     </strong>
                   </div>
                   <div className="output-stat">
-                    <span>Net Risk Reduction</span>
+                    <span>Score Delta</span>
                     <strong className="text-emerald">
-                      {(simulation.score_change * 100).toFixed(1)} percentage points
+                      {simulation.score_change.toFixed(4)}
                     </strong>
                   </div>
                 </div>
               ) : (
-                <div className="lab-placeholder">Select parameters and click Execute.</div>
+                <div className="lab-placeholder">
+                  {simulating
+                    ? 'Executing model inference on backend...'
+                    : 'Click Execute Model Inference to evaluate the selected cell.'}
+                </div>
               )}
             </div>
           </div>
         </div>
       )}
 
-      {/* VIEW 5: REPORTS TAB */}
+      {/* VIEW 5: TECHNICAL SUMMARY TAB */}
       {activeTab === 'reports' && (
         <div className="tab-fullscreen-container">
           <div className="report-action-bar">
@@ -908,57 +866,58 @@ export default function App() {
               onClick={() => window.print()}
             >
               <Printer size={16} />
-              <span>Print / Export PDF Brief</span>
+              <span>Print Technical Brief</span>
             </button>
           </div>
 
           <article className="official-report-sheet">
             <header className="report-sheet-header">
-              <div className="report-sheet-emblem">GREATER CHENNAI CORPORATION</div>
-              <h1>FLOOD RISK INTELLIGENCE &amp; MITIGATION DIRECTIVE</h1>
+              <div className="report-sheet-emblem">RISKTWIN AI — CHENNAI FLOOD SUSCEPTIBILITY</div>
+              <h1>TECHNICAL SPECIFICATION &amp; METHODOLOGY BRIEF</h1>
               <div className="report-meta-row">
-                <span>Date: October 2026</span>
-                <span>Jurisdiction: 200 GCC Wards</span>
-                <span>Model Engine: XGBoost v2 (Tree SHAP)</span>
+                <span>Model: XGBoost v2</span>
+                <span>Study Area: Greater Chennai Corporation</span>
+                <span>Grid Resolution: 250m Metric (EPSG:32644)</span>
               </div>
             </header>
 
             <section className="report-body-section">
-              <h2>1. Executive Summary</h2>
+              <h2>1. Scope and Scientific Caveats</h2>
               <p>
-                This document synthesizes machine-learned flood susceptibility scores for Greater
-                Chennai Corporation. Using 250m metric grid cells projected to UTM Zone 44N, the
-                system identifies critical low-elevation and high-impervious-cover hotspots
-                requiring targeted engineering and nature-based sponge interventions.
+                Scores represent statistical susceptibility to historical mapped 2015 inundation, not
+                calibrated probabilities of future flooding. Rainfall forecasting, hydrodynamic routing,
+                and socioeconomic exposure remain unintegrated into this prototype.
               </p>
             </section>
 
             <section className="report-body-section">
-              <h2>2. Active Field Response &amp; Intimated Units</h2>
+              <h2>2. Validation Strategy</h2>
               <p>
-                The following teams have been dispatched by the Municipal Commissioner Desk for
-                immediate pre-monsoon desilting and mobile pump positioning:
+                Models were evaluated on a geographically separated holdout in northern Chennai (1,839 cells)
+                buffered by a 500m transition gap. Holdout ROC-AUC is 0.627 and PR-AUC is 0.350 against a 25.1%
+                prevalence baseline.
               </p>
-              <ul>
-                {activeDispatches.map((d) => (
-                  <li key={d.id}>
-                    <strong>{d.id}</strong>: {d.zone_name} — Assigned to {d.team_name} ({d.priority})
-                  </li>
-                ))}
-              </ul>
+            </section>
+
+            <section className="report-body-section">
+              <h2>3. Simulation Mechanics</h2>
+              <p>
+                The counterfactual scenario engine alters <code>built_up_fraction_2021</code> only. Terrain,
+                distance to waterways, and all other features remain constant during re-scoring.
+              </p>
             </section>
           </article>
         </div>
       )}
 
-      {/* 3. ADMIN PROFILE & MANAGEMENT MODAL */}
+      {/* 3. SIMULATED ADMIN PROFILE MODAL */}
       {showAdminModal && (
         <div className="modal-backdrop" onClick={() => setShowAdminModal(false)}>
           <div className="admin-modal-card" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
               <div className="modal-title-row">
                 <User size={18} className="modal-icon" />
-                <h3>Municipal Command &amp; Administrator Profile</h3>
+                <h3>Simulated Dispatch Desk (Prototype)</h3>
               </div>
               <button
                 type="button"
@@ -971,57 +930,54 @@ export default function App() {
 
             <div className="modal-body-admin">
               <div className="admin-badge-profile">
-                <div className="admin-large-avatar">SR</div>
+                <div className="admin-large-avatar">DM</div>
                 <div className="admin-credentials">
-                  <h4>Thiru S. Ramanathan, IAS</h4>
-                  <p>Special Commissioner for Disaster Management</p>
-                  <span className="jurisdiction-tag">Greater Chennai Corporation (GCC)</span>
+                  <h4>Demo Operator</h4>
+                  <p>Simulation Mode — Municipal Dispatch Prototype</p>
+                  <span className="jurisdiction-tag">In-Memory Session Only</span>
                 </div>
               </div>
 
-              <div className="field-units-status-grid">
-                <div className="unit-stat-card">
-                  <span>Active Dispatched Teams</span>
-                  <strong>{activeDispatches.length}</strong>
-                </div>
-                <div className="unit-stat-card">
-                  <span>Standby Dewatering Squads</span>
-                  <strong>6 Units</strong>
-                </div>
-                <div className="unit-stat-card">
-                  <span>Monitored High-Risk Zones</span>
-                  <strong>18 Hotspots</strong>
-                </div>
+              <div className="prototype-disclosure-banner">
+                <AlertCircle size={15} />
+                <span>
+                  All dispatch actions in this interface are simulated for demonstration. Orders exist
+                  strictly in browser memory and are not transmitted to actual municipal services.
+                </span>
               </div>
 
               <div className="recent-orders-list">
-                <h4>Recent Mitigation Orders Issued</h4>
-                {activeDispatches.map((d) => (
-                  <div key={d.id} className="recent-order-item">
-                    <div className="order-left">
-                      <strong>{d.id}</strong>
-                      <span>{d.zone_name}</span>
+                <h4>Session Dispatches Created: {activeDispatches.length}</h4>
+                {activeDispatches.length === 0 ? (
+                  <p className="no-orders-caption">No orders recorded in this session yet.</p>
+                ) : (
+                  activeDispatches.map((d) => (
+                    <div key={d.id} className="recent-order-item">
+                      <div className="order-left">
+                        <strong>{d.id}</strong>
+                        <span>{d.zone_name}</span>
+                      </div>
+                      <div className="order-right">
+                        <span className="order-unit">{d.team_name}</span>
+                        <span className="order-status-badge">{d.status}</span>
+                      </div>
                     </div>
-                    <div className="order-right">
-                      <span className="order-unit">{d.team_name}</span>
-                      <span className="order-status-badge">{d.status}</span>
-                    </div>
-                  </div>
-                ))}
+                  ))
+                )}
               </div>
             </div>
           </div>
         </div>
       )}
 
-      {/* 4. INTIMATE MITIGATION TEAM / DISPATCH MODAL */}
+      {/* 4. SIMULATE DISPATCH ORDER MODAL */}
       {dispatchModalCell && (
         <div className="modal-backdrop" onClick={() => setDispatchModalCell(null)}>
           <div className="dispatch-modal-card" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
               <div className="modal-title-row">
                 <Send size={18} className="text-red" />
-                <h3>Intimate Mitigation Team (Admin Dispatch)</h3>
+                <h3>Simulated Dispatch Directive (Prototype)</h3>
               </div>
               <button
                 type="button"
@@ -1033,36 +989,41 @@ export default function App() {
             </div>
 
             <div className="modal-body-dispatch">
+              <div className="prototype-disclosure-banner">
+                <AlertCircle size={15} />
+                <span>
+                  Prototype only: This order will be stored in frontend memory for this browser session.
+                  No real field unit will be contacted.
+                </span>
+              </div>
+
               <div className="dispatch-cell-summary">
                 <div className="summary-chip">
                   <span>Target Cell:</span>
                   <strong>{dispatchModalCell.cell_id}</strong>
                 </div>
                 <div className="summary-chip">
-                  <span>Modelled Risk:</span>
+                  <span>Susceptibility:</span>
                   <strong className="text-red">
-                    {dispatchModalCell.susceptibility_score.toFixed(2)} (Critical)
+                    {dispatchModalCell.susceptibility_score.toFixed(3)}
                   </strong>
                 </div>
                 <div className="summary-chip">
-                  <span>GPS:</span>
-                  <strong>
-                    {dispatchModalCell.latitude.toFixed(3)}, {dispatchModalCell.longitude.toFixed(3)}
-                  </strong>
+                  <span>Region:</span>
+                  <strong>{dispatchModalCell.validation_region}</strong>
                 </div>
               </div>
 
               <div className="dispatch-form-group">
-                <label>Assign Municipal Response Unit</label>
+                <label>Simulated Field Unit (Demo Identifier)</label>
                 <select
                   value={assignedUnit}
                   onChange={(e) => setAssignedUnit(e.target.value)}
                   className="modal-select"
                 >
-                  <option>GCC Zone 10 Rapid Dewatering Squad #4</option>
-                  <option>PWD Stormwater Canal Maintenance Taskforce</option>
-                  <option>NDRF Sector 4 Tactical Disaster Unit</option>
-                  <option>Chennai Metro Water Emergency Sump Control</option>
+                  <option>Field Response Unit A (Simulated)</option>
+                  <option>Drainage Maintenance Crew 01 (Simulated)</option>
+                  <option>Mobile Dewatering Unit 02 (Simulated)</option>
                 </select>
               </div>
 
@@ -1073,14 +1034,14 @@ export default function App() {
                   onChange={(e) => setDispatchPriority(e.target.value as any)}
                   className="modal-select"
                 >
-                  <option>Critical / Immediate</option>
+                  <option>Immediate</option>
                   <option>High</option>
                   <option>Normal</option>
                 </select>
               </div>
 
               <div className="dispatch-form-group">
-                <label>Standard Mitigation Protocol (SHAP Mapped)</label>
+                <label>Mitigation Protocol</label>
                 <textarea
                   value={dispatchProtocol}
                   onChange={(e) => setDispatchProtocol(e.target.value)}
@@ -1090,7 +1051,7 @@ export default function App() {
               </div>
 
               <div className="dispatch-form-group">
-                <label>Field Notes / Asset Protection Directives</label>
+                <label>Session Notes</label>
                 <input
                   type="text"
                   value={dispatchNotes}
@@ -1114,7 +1075,7 @@ export default function App() {
                   id="btn-confirm-dispatch-order"
                 >
                   <Send size={15} />
-                  <span>Transmit Mitigation Directive</span>
+                  <span>Create Simulated Order</span>
                 </button>
               </div>
             </div>

@@ -4,7 +4,7 @@ import type { Map as MapLibreMap, StyleSpecification } from 'maplibre-gl'
 import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import { LocateFixed, Plus, Minus, Layers } from 'lucide-react'
-import type { LayerToggleState, RiskFilterState, RiskLayer } from './types'
+import type { RiskFilterState, RiskLayer } from './types'
 import { CATEGORY_COLORS, categoryForScore } from './types'
 
 maplibregl.setWorkerUrl(workerUrl)
@@ -53,7 +53,7 @@ interface Props {
   layer: RiskLayer
   selectedId: string | null
   onSelect: (cellId: string) => void
-  layerToggles: LayerToggleState
+  showSusceptibilityGrid: boolean
   riskFilters: RiskFilterState
 }
 
@@ -74,7 +74,7 @@ export default function MapView({
   layer,
   selectedId,
   onSelect,
-  layerToggles,
+  showSusceptibilityGrid,
   riskFilters,
 }: Props) {
   const container = useRef<HTMLDivElement>(null)
@@ -117,7 +117,7 @@ export default function MapView({
         promoteId: 'cell_id',
       })
 
-      // Fill Layer for Risk Heat Grid
+      // Fill Layer for Risk Heat Grid (Actual 250m XGBoost Scored Polygons)
       map.addLayer({
         id: 'susceptibility-fill',
         type: 'fill',
@@ -134,7 +134,7 @@ export default function MapView({
             0.75,
             CATEGORY_COLORS.Critical,
           ],
-          'fill-opacity': layerToggles.floodRisk ? 0.72 : 0,
+          'fill-opacity': showSusceptibilityGrid ? 0.72 : 0,
         },
       })
 
@@ -146,24 +146,11 @@ export default function MapView({
         paint: {
           'line-color': '#ffffff',
           'line-width': 0.45,
-          'line-opacity': 0.35,
+          'line-opacity': showSusceptibilityGrid ? 0.35 : 0,
         },
       })
 
-      // Water Proximity Accent Layer (when waterBodies toggle is on)
-      map.addLayer({
-        id: 'water-proximity-glow',
-        type: 'line',
-        source: 'susceptibility',
-        filter: ['<', ['get', 'driver_1_value'], 500],
-        paint: {
-          'line-color': '#38bdf8',
-          'line-width': 1.5,
-          'line-opacity': layerToggles.waterBodies ? 0.6 : 0,
-        },
-      })
-
-      // Selected Cell Outline Glow
+      // Selected Cell Outline Halo
       map.addLayer({
         id: 'selected-cell-halo',
         type: 'line',
@@ -231,7 +218,7 @@ export default function MapView({
       map.remove()
       mapRef.current = null
     }
-  }, [basemap, layer, onSelect])
+  }, [basemap, layer, onSelect, showSusceptibilityGrid])
 
   // Update selected cell highlight
   useEffect(() => {
@@ -288,7 +275,7 @@ export default function MapView({
     map.setFilter('cell-lines', filterSpec)
   }, [riskFilters])
 
-  // Update Layer Toggles (Flood Risk visibility, Water bodies highlight)
+  // Update Grid Visibility Toggle
   useEffect(() => {
     const map = mapRef.current
     if (!map) return
@@ -297,17 +284,17 @@ export default function MapView({
       map.setPaintProperty(
         'susceptibility-fill',
         'fill-opacity',
-        layerToggles.floodRisk ? 0.74 : 0.05
+        showSusceptibilityGrid ? 0.74 : 0
       )
     }
-    if (map.getLayer('water-proximity-glow')) {
+    if (map.getLayer('cell-lines')) {
       map.setPaintProperty(
-        'water-proximity-glow',
+        'cell-lines',
         'line-opacity',
-        layerToggles.waterBodies ? 0.75 : 0
+        showSusceptibilityGrid ? 0.35 : 0
       )
     }
-  }, [layerToggles])
+  }, [showSusceptibilityGrid])
 
   const selectedFeature = selectedId
     ? layer.features.find((f) => f.properties.cell_id === selectedId)
@@ -355,7 +342,7 @@ export default function MapView({
         </button>
       </div>
 
-      {/* Selected Cell Marker Tag (Image 1 Callout) */}
+      {/* Selected Cell Marker Tag */}
       {selectedFeature && (
         <div className="map-selected-callout">
           <div className="callout-header">
@@ -363,7 +350,7 @@ export default function MapView({
             <strong>Cell {selectedFeature.properties.cell_id}</strong>
           </div>
           <div className="callout-score">
-            Risk: <strong>{selectedFeature.properties.susceptibility_score.toFixed(2)}</strong> (
+            Susceptibility: <strong>{selectedFeature.properties.susceptibility_score.toFixed(3)}</strong> (
             {categoryForScore(selectedFeature.properties.susceptibility_score)})
           </div>
         </div>
@@ -371,13 +358,13 @@ export default function MapView({
 
       {/* Map Legend Overlay matching Image 1 */}
       <div className="map-legend-overlay">
-        <div className="legend-title">Flood Risk (ML Prediction)</div>
+        <div className="legend-title">Flood Susceptibility Score (XGBoost)</div>
         <div className="legend-gradient-bar" />
         <div className="legend-labels">
-          <span>Low</span>
-          <span>Moderate</span>
-          <span>High</span>
-          <span>Critical</span>
+          <span>Low (&lt;0.25)</span>
+          <span>Mod (0.25-0.5)</span>
+          <span>High (0.5-0.75)</span>
+          <span>Critical (&ge;0.75)</span>
         </div>
         <div className="legend-scale-bar">
           <div className="scale-line" />
@@ -398,7 +385,7 @@ export default function MapView({
             top: `${hoverInfo.y - 12}px`,
           }}
         >
-          <div className="tooltip-cell-id">{hoverInfo.cellId}</div>
+          <div className="tooltip-cell-id">Cell {hoverInfo.cellId}</div>
           <div className="tooltip-score">
             Score: <strong>{hoverInfo.score.toFixed(3)}</strong>
           </div>

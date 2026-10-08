@@ -325,6 +325,53 @@ button {
   color: var(--text-dim);
 }
 
+.derived-sources-box {
+  background: #091727;
+  border: 1px solid var(--border-dark);
+  padding: 10px 12px;
+  border-radius: 6px;
+  margin-top: 6px;
+}
+
+.derived-sources-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 10.5px;
+  font-weight: 700;
+  color: #94a3b8;
+  text-transform: uppercase;
+  margin-bottom: 6px;
+}
+
+.derived-sources-list {
+  padding-left: 16px;
+  font-size: 11px;
+  color: #64748b;
+  line-height: 1.55;
+}
+
+.static-event-box {
+  background: #091727;
+  border: 1px solid var(--border-dark);
+  padding: 10px 12px;
+  border-radius: 6px;
+}
+
+.event-name {
+  font-size: 12px;
+  font-weight: 700;
+  color: #f1f5f9;
+  display: block;
+  margin-bottom: 4px;
+}
+
+.event-note {
+  font-size: 10.5px;
+  color: #64748b;
+  line-height: 1.4;
+}
+
 .sidebar-select {
   background: #13253b;
   border: 1px solid var(--border-dark);
@@ -861,6 +908,89 @@ button {
 
 .text-emerald { color: #10b981 !important; }
 
+.sim-feature-tag {
+  font-size: 11.5px;
+  color: var(--text-muted);
+}
+
+.sim-feature-tag code {
+  color: #38bdf8;
+  background: #0d1e33;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+
+.sim-idle-prompt {
+  background: #0f1f33;
+  border: 1px dashed var(--border-dark);
+  padding: 10px 14px;
+  border-radius: 6px;
+  font-size: 11.5px;
+  color: var(--text-dim);
+  text-align: center;
+}
+
+.prototype-disclosure-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  padding: 10px 12px;
+  border-radius: 6px;
+  font-size: 11.5px;
+  color: #fca5a5;
+  line-height: 1.4;
+}
+
+.prototype-badge {
+  font-size: 10px;
+  font-weight: 700;
+  background: rgba(56, 189, 248, 0.12);
+  color: #38bdf8;
+  padding: 2px 7px;
+  border-radius: 4px;
+}
+
+.empty-dispatches-box {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 40px;
+  text-align: center;
+  gap: 8px;
+  color: var(--text-dim);
+}
+
+.empty-dispatches-box p {
+  color: #e2e8f0;
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.empty-dispatches-box span {
+  font-size: 12px;
+}
+
+.holdout-stats-row {
+  display: flex;
+  gap: 20px;
+  font-size: 11.5px;
+  color: var(--text-muted);
+  border-top: 1px solid var(--border-dark);
+  padding-top: 10px;
+}
+
+.no-orders-caption {
+  font-size: 11.5px;
+  color: var(--text-dim);
+  font-style: italic;
+  padding: 8px 0;
+}
+
 /* ==========================================================================
    Right Panel: Selected Zone Intelligence matching Image 1
    ========================================================================== */
@@ -1023,51 +1153,15 @@ button {
   color: var(--text-muted);
 }
 
-.confidence-pill {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.confidence-ring {
-  width: 28px;
-  height: 28px;
-}
-
-.circular-chart {
-  display: block;
-  width: 100%;
-}
-
-.circle-bg {
-  fill: none;
-  stroke: #1e3a5f;
-  stroke-width: 3.8;
-}
-
-.circle {
-  fill: none;
-  stroke: #10b981;
-  stroke-width: 3.8;
-  stroke-linecap: round;
-}
-
-.confidence-text {
-  display: flex;
-  flex-direction: column;
-  text-align: right;
-}
-
-.conf-pct {
-  font-size: 11px;
-  font-weight: 800;
-  color: #10b981;
-  line-height: 1;
-}
-
-.conf-label {
-  font-size: 9px;
-  color: var(--text-dim);
+.uncalibrated-notice-tag {
+  font-size: 10px;
+  font-weight: 700;
+  color: #38bdf8;
+  background: rgba(56, 189, 248, 0.12);
+  border: 1px solid rgba(56, 189, 248, 0.3);
+  padding: 2px 7px;
+  border-radius: 4px;
+  text-transform: uppercase;
 }
 
 .score-value-row {
@@ -1091,6 +1185,15 @@ button {
   text-transform: uppercase;
 }
 
+.score-disclaimer {
+  font-size: 11px;
+  color: var(--text-muted);
+  line-height: 1.4;
+  margin-top: 10px;
+  border-top: 1px solid var(--border-dark);
+  padding-top: 8px;
+}
+
 /* Exposure Card */
 .exposure-card {
   background: var(--bg-dark-card);
@@ -1106,58 +1209,29 @@ button {
   font-size: 11.5px;
   font-weight: 700;
   color: #e2e8f0;
-  margin-bottom: 12px;
+  margin-bottom: 10px;
 }
 
-.exposure-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 10px;
-}
-
-.exposure-item {
-  background: #0f1f33;
-  border: 1px solid rgba(255, 255, 255, 0.05);
-  padding: 8px 10px;
+.exposure-notice-box {
+  background: #0d1e33;
+  border: 1px solid var(--border-dark);
   border-radius: 6px;
+  padding: 12px;
+}
+
+.notice-header-row {
   display: flex;
   align-items: center;
-  gap: 8px;
-}
-
-.exposure-item.full-span {
-  grid-column: span 2;
-}
-
-.exposure-icon-circle {
-  width: 30px;
-  height: 30px;
-  border-radius: 6px;
-  background: rgba(56, 189, 248, 0.12);
+  gap: 7px;
   color: #38bdf8;
-  display: grid;
-  place-items: center;
-  flex: none;
+  font-size: 12px;
+  margin-bottom: 6px;
 }
 
-.accent-red { background: rgba(239, 68, 68, 0.12) !important; color: var(--risk-critical) !important; }
-.accent-blue { background: rgba(37, 99, 235, 0.15) !important; color: #60a5fa !important; }
-.accent-purple { background: rgba(168, 85, 247, 0.15) !important; color: #c084fc !important; }
-
-.exposure-info {
-  display: flex;
-  flex-direction: column;
-}
-
-.exposure-label {
-  font-size: 10px;
-  color: var(--text-dim);
-}
-
-.exposure-value {
-  font-size: 13.5px;
-  font-weight: 800;
-  color: #ffffff;
+.notice-body-text {
+  font-size: 11.5px;
+  color: var(--text-muted);
+  line-height: 1.45;
 }
 
 /* SHAP Waterfall Bars */
@@ -1177,7 +1251,11 @@ button {
 .shap-bar-row {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 3px;
+  background: #0f1f33;
+  padding: 8px 10px;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.04);
 }
 
 .shap-bar-top {
@@ -1187,24 +1265,56 @@ button {
   font-size: 11.5px;
 }
 
-.driver-title {
-  color: #cbd5e1;
+.driver-name-block {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
 }
 
-.driver-pct {
+.driver-title {
+  color: #f1f5f9;
+  font-weight: 600;
+}
+
+.driver-val-sub {
+  font-size: 10.5px;
+  color: var(--text-dim);
+}
+
+.driver-shap-badge {
+  font-size: 11px;
   font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 4px;
 }
 
 .shap-track {
   height: 6px;
-  background: #0f1f33;
+  background: #091524;
   border-radius: 3px;
   overflow: hidden;
+  margin: 3px 0 2px;
 }
 
 .shap-fill {
   height: 100%;
   border-radius: 3px;
+  transition: width 0.3s ease;
+}
+
+.driver-direction-caption {
+  font-size: 10px;
+  color: var(--text-dim);
+}
+
+.shap-method-note {
+  font-size: 10px;
+  color: var(--text-dim);
+  border-top: 1px solid var(--border-dark);
+  padding-top: 8px;
+  margin-top: 8px;
+  line-height: 1.4;
 }
 
 /* Recommendations matching Image 1 */

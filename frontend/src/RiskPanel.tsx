@@ -3,18 +3,17 @@ import {
   X,
   Compass,
   Users,
-  Building2,
-  HeartPulse,
-  GraduationCap,
-  Route,
   HelpCircle,
   ChevronRight,
   Send,
   CheckCircle2,
   Sliders,
+  TrendingUp,
+  TrendingDown,
+  AlertCircle,
 } from 'lucide-react'
 import type { CellProperties, DispatchOrder } from './types'
-import { CATEGORY_COLORS, categoryForScore, computeExposure, topDrivers } from './types'
+import { CATEGORY_COLORS, categoryForScore, topDrivers } from './types'
 import { driverLabel, formatDriverValue, recommend } from './recommendations'
 
 interface Props {
@@ -34,9 +33,8 @@ export default function RiskPanel({
 }: Props) {
   const drivers = useMemo(() => (cell ? topDrivers(cell) : []), [cell])
   const actions = useMemo(() => recommend(drivers), [drivers])
-  const exposure = useMemo(() => (cell ? computeExposure(cell) : null), [cell])
 
-  // Check if this cell has already been dispatched
+  // Check if this cell has a simulated dispatch in current session
   const cellDispatch = useMemo(() => {
     if (!cell) return null
     return activeDispatches.find((d) => d.cell_id === cell.cell_id) ?? null
@@ -46,14 +44,14 @@ export default function RiskPanel({
     return (
       <aside className="risk-panel empty-panel" aria-label="Risk Intelligence panel">
         <div className="empty-panel-inner">
-          <div className="panel-badge-kicker">ZONE INTELLIGENCE</div>
+          <div className="panel-badge-kicker">CELL INTELLIGENCE</div>
           <div className="empty-hero-icon" aria-hidden="true">
             <Compass size={36} />
           </div>
           <h2 className="empty-title">Select a Grid Cell</h2>
           <p className="empty-desc">
             Click any 250m grid cell on the Chennai map to inspect XGBoost flood susceptibility,
-            socioeconomic exposure, Tree SHAP drivers, and issue mitigation dispatch orders.
+            local Tree SHAP attributions (log-odds), and planning recommendations.
           </p>
 
           <button
@@ -73,28 +71,15 @@ export default function RiskPanel({
   const category = categoryForScore(score)
   const categoryColor = CATEGORY_COLORS[category]
 
-  // Confidence computation: higher when score is further away from the 0.5 decision boundary
-  const confidenceScore = Math.min(94, Math.max(76, Math.round(75 + Math.abs(score - 0.5) * 40)))
-  const wardIndex = (cell.cell_id.charCodeAt(3) * 7 + cell.cell_id.charCodeAt(8) * 3) % 200 + 1
-
-  // SHAP relative impact percentages
-  const shapSum = drivers.reduce((sum, d) => sum + Math.abs(d.shap), 0) || 1
-  const shapPercentages = drivers.map((d) => ({
-    name: driverLabel(d.name),
-    valStr: formatDriverValue(d),
-    pct: Math.min(45, Math.max(8, Math.round((Math.abs(d.shap) / shapSum) * 75))),
-    isUp: d.shap >= 0,
-  }))
-
   return (
     <aside className="risk-panel" aria-label={`Risk intelligence for ${cell.cell_id}`}>
       {/* Selected Zone Header */}
       <div className="panel-zone-header">
         <div className="zone-title-block">
-          <div className="zone-label-sub">SELECTED ZONE</div>
+          <div className="zone-label-sub">GRID CELL INSPECTION</div>
           <div className="zone-name">
-            Zone {wardIndex}, Chennai
-            <span className="zone-sub-id">({cell.cell_id})</span>
+            Cell {cell.cell_id}
+            <span className="zone-sub-id">({cell.validation_region} region)</span>
           </div>
         </div>
         <div className="zone-actions">
@@ -102,8 +87,8 @@ export default function RiskPanel({
             type="button"
             className="zone-close-btn"
             onClick={onClear}
-            title="Deselect zone"
-            aria-label="Deselect zone"
+            title="Deselect cell"
+            aria-label="Deselect cell"
           >
             <X size={16} />
           </button>
@@ -111,158 +96,121 @@ export default function RiskPanel({
       </div>
 
       <div className="panel-scroll-content">
-        {/* Active Dispatch Notification Banner if already intimate */}
+        {/* Active Dispatch Notification Banner if simulated order created */}
         {cellDispatch && (
           <div className="active-dispatch-banner">
             <div className="dispatch-banner-header">
               <CheckCircle2 size={16} className="text-emerald" />
-              <strong>Mitigation Order Active</strong>
+              <strong>Simulated Order Recorded in Memory</strong>
             </div>
             <div className="dispatch-banner-text">
-              Assigned to <strong>{cellDispatch.team_name}</strong> • Status:{' '}
-              <span className="dispatch-status-tag">{cellDispatch.status}</span>
+              Assigned to <strong>{cellDispatch.team_name}</strong> • Priority: {cellDispatch.priority}
             </div>
           </div>
         )}
 
-        {/* Flood Risk (ML Prediction) Score Card */}
+        {/* Flood Susceptibility Score Card (No fake confidence percentage) */}
         <section className="risk-score-card">
           <div className="score-card-header">
-            <span className="score-label">Flood Risk (ML Prediction)</span>
-            <div className="confidence-pill">
-              <div className="confidence-ring">
-                <svg viewBox="0 0 36 36" className="circular-chart">
-                  <path
-                    className="circle-bg"
-                    d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
-                  />
-                  <path
-                    className="circle"
-                    strokeDasharray={`${confidenceScore}, 100`}
-                    d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
-                  />
-                </svg>
-              </div>
-              <div className="confidence-text">
-                <span className="conf-pct">{confidenceScore}%</span>
-                <span className="conf-label">High Confidence</span>
-              </div>
-            </div>
+            <span className="score-label">Flood Susceptibility Score</span>
+            <span className="uncalibrated-notice-tag">Uncalibrated Output</span>
           </div>
 
           <div className="score-value-row">
             <span className="big-score-val" style={{ color: categoryColor }}>
-              {score.toFixed(2)}
+              {score.toFixed(3)}
             </span>
             <span
               className="risk-tier-tag"
               style={{ backgroundColor: `${categoryColor}22`, color: categoryColor }}
             >
-              {category} Risk
+              {category} Susceptibility
             </span>
+          </div>
+
+          <div className="score-disclaimer">
+            Model score (0.00 – 1.00) measures feature similarity to the 2015 inundation training label.
+            It is not a calibrated future-flood probability.
           </div>
         </section>
 
-        {/* Exposure in this Zone */}
-        {exposure && (
-          <section className="exposure-card">
-            <div className="section-eyebrow">
-              <Users size={14} />
-              <span>Exposure in this Zone</span>
+        {/* Exposure Data Section (Scientifically credible: no fabricated numbers) */}
+        <section className="exposure-card">
+          <div className="section-eyebrow">
+            <Users size={14} />
+            <span>Exposure Data</span>
+          </div>
+          <div className="exposure-notice-box">
+            <div className="notice-header-row">
+              <AlertCircle size={15} className="notice-icon" />
+              <strong>Exposure data not yet integrated</strong>
             </div>
-            <div className="exposure-grid">
-              <div className="exposure-item">
-                <div className="exposure-icon-circle">
-                  <Users size={16} />
-                </div>
-                <div className="exposure-info">
-                  <div className="exposure-label">Population</div>
-                  <div className="exposure-value">{exposure.population.toLocaleString()}</div>
-                </div>
-              </div>
+            <p className="notice-body-text">
+              Census population, building footprints, critical facilities (hospitals, schools) and
+              arterial roads are not yet linked to this 250m grid. Scores represent physical
+              and land-cover hazard characteristics only, without socioeconomic exposure weighting.
+            </p>
+          </div>
+        </section>
 
-              <div className="exposure-item">
-                <div className="exposure-icon-circle">
-                  <Building2 size={16} />
-                </div>
-                <div className="exposure-info">
-                  <div className="exposure-label">Buildings</div>
-                  <div className="exposure-value">{exposure.buildings.toLocaleString()}</div>
-                </div>
-              </div>
-
-              <div className="exposure-item">
-                <div className="exposure-icon-circle accent-red">
-                  <HeartPulse size={16} />
-                </div>
-                <div className="exposure-info">
-                  <div className="exposure-label">Hospitals</div>
-                  <div className="exposure-value">{exposure.hospitals}</div>
-                </div>
-              </div>
-
-              <div className="exposure-item">
-                <div className="exposure-icon-circle accent-blue">
-                  <GraduationCap size={16} />
-                </div>
-                <div className="exposure-info">
-                  <div className="exposure-label">Schools</div>
-                  <div className="exposure-value">{exposure.schools}</div>
-                </div>
-              </div>
-
-              <div className="exposure-item full-span">
-                <div className="exposure-icon-circle accent-purple">
-                  <Route size={16} />
-                </div>
-                <div className="exposure-info">
-                  <div className="exposure-label">Major Roads Arterial</div>
-                  <div className="exposure-value">{exposure.majorRoads}</div>
-                </div>
-              </div>
-            </div>
-          </section>
-        )}
-
-        {/* Why is this zone at high risk? (SHAP Waterfall) */}
+        {/* Why is this cell at high risk? (Tree SHAP in Log-Odds: no fake percentages) */}
         <section className="shap-drivers-section">
           <div className="section-eyebrow">
             <HelpCircle size={14} />
-            <span>Why is this zone at high risk?</span>
+            <span>Local Model Drivers (Tree SHAP Log-Odds)</span>
           </div>
 
           <div className="shap-bars-list">
-            {shapPercentages.map((driver, idx) => {
-              const barColor =
-                idx === 0 ? '#ef4444' : idx === 1 ? '#f97316' : idx === 2 ? '#eab308' : '#38bdf8'
+            {drivers.map((driver) => {
+              const isUpward = driver.shap >= 0
+              const barColor = isUpward ? '#ef4444' : '#10b981'
+              // Scaled bar length relative to a typical max absolute SHAP value of 0.8
+              const barWidth = Math.min(100, Math.max(12, Math.round((Math.abs(driver.shap) / 0.8) * 100)))
+
               return (
                 <div key={driver.name} className="shap-bar-row">
                   <div className="shap-bar-top">
-                    <span className="driver-title">{driver.name}</span>
-                    <span className="driver-pct" style={{ color: barColor }}>
-                      +{driver.pct}%
-                    </span>
+                    <div className="driver-name-block">
+                      <span className="driver-title">{driverLabel(driver.name)}</span>
+                      <span className="driver-val-sub">({formatDriverValue(driver)})</span>
+                    </div>
+                    <div className="driver-shap-badge" style={{ color: barColor }}>
+                      {isUpward ? <TrendingUp size={13} /> : <TrendingDown size={13} />}
+                      <span>
+                        {isUpward ? `+${driver.shap.toFixed(3)}` : driver.shap.toFixed(3)} log-odds
+                      </span>
+                    </div>
                   </div>
                   <div className="shap-track">
                     <div
                       className="shap-fill"
                       style={{
-                        width: `${driver.pct * 2}%`,
+                        width: `${barWidth}%`,
                         backgroundColor: barColor,
                       }}
                     />
+                  </div>
+                  <div className="driver-direction-caption">
+                    {isUpward
+                      ? 'Raises model susceptibility estimate'
+                      : 'Lowers model susceptibility estimate'}
                   </div>
                 </div>
               )
             })}
           </div>
+
+          <div className="shap-method-note">
+            Tree SHAP marginal contribution to the XGBoost decision margin. Output space: log-odds
+            (base value: +0.754).
+          </div>
         </section>
 
-        {/* Recommended Mitigation Actions matching Image 1 */}
+        {/* Recommended Mitigation Actions mapped to physical drivers */}
         <section className="recommendations-section">
           <div className="section-eyebrow">
             <Sliders size={14} />
-            <span>Recommended Mitigation Actions</span>
+            <span>Planning Suggestions (Physical Driver Mapped)</span>
           </div>
 
           <div className="actions-list">
@@ -279,7 +227,7 @@ export default function RiskPanel({
           </div>
         </section>
 
-        {/* ADMIN DISPATCH ACTION BUTTON */}
+        {/* PROTOTYPE DISPATCH ACTION BUTTON (Explicitly labelled prototype) */}
         <section className="admin-dispatch-section">
           <button
             type="button"
@@ -287,12 +235,12 @@ export default function RiskPanel({
             onClick={() => onOpenDispatch(cell)}
             id="btn-intimate-mitigation-team"
           >
-            <Send size={16} />
-            <span>Intimate Mitigation Team (Admin Dispatch)</span>
+            <Send size={15} />
+            <span>Simulate Mitigation Dispatch (Prototype)</span>
           </button>
           <p className="dispatch-btn-help">
-            Directly intimates municipal response squads with GPS coordinates and SHAP mitigation
-            protocols.
+            Prototype workflow: Orders are created in local browser memory only and are not
+            transmitted to municipal emergency services.
           </p>
         </section>
       </div>
