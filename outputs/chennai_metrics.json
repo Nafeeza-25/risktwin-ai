@@ -1,0 +1,20 @@
+{
+  "model": "XGBoost binary classifier",
+  "interpretation": "2015-event flood susceptibility; scores are not calibrated future flood probabilities",
+  "split": "northern 25% of cells held out; 500 m transition strip omitted from training",
+  "train_cells": 5255,
+  "test_cells": 1839,
+  "train_flooded": 3563,
+  "test_flooded": 461,
+  "roc_auc": 0.6125204247722973,
+  "precision": 0.29353680430879714,
+  "recall": 0.7093275488069414,
+  "f1": 0.41523809523809524,
+  "feature_names": [
+    "mean_elevation",
+    "min_elevation",
+    "mean_slope",
+    "distance_to_river",
+    "distance_to_waterbody"
+  ]
+}

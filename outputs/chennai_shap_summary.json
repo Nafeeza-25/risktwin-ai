@@ -1,0 +1,20 @@
+{
+  "model": "enhanced_xgboost",
+  "method": "Tree SHAP, tree-path-dependent background",
+  "output_space": "log_odds",
+  "base_value": 0.753634512424469,
+  "interpretation": "Signed local model attributions; not causal intervention effects",
+  "mean_absolute_shap": {
+    "mean_elevation": 0.7879116535186768,
+    "min_elevation": 0.31862902641296387,
+    "mean_slope": 0.10794815421104431,
+    "distance_to_river": 0.1935264617204666,
+    "distance_to_waterbody": 0.23155629634857178,
+    "relative_elevation_1km": 0.17011603713035583,
+    "log_flow_accumulation_90m": 0.10876236110925674,
+    "twi_90m": 0.12097115069627762,
+    "river_edge_distance": 0.321896493434906,
+    "any_water_edge_distance": 0.06539071351289749,
+    "built_up_fraction_2021": 0.24644751846790314
+  }
+}

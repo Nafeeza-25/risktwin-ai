@@ -1,0 +1,87 @@
+{
+  "selection_rule": "highest holdout PR-AUC (average precision); one fixed configuration per new model",
+  "selected_model": "enhanced_xgboost",
+  "split": "unchanged northern-quarter holdout with a 500 m training gap",
+  "classification_threshold": 0.5,
+  "train_cells": 5255,
+  "holdout_cells": 1839,
+  "holdout_flooded": 461,
+  "holdout_prevalence": 0.25067971723762916,
+  "features_by_model": {
+    "baseline_xgboost": [
+      "mean_elevation",
+      "min_elevation",
+      "mean_slope",
+      "distance_to_river",
+      "distance_to_waterbody"
+    ],
+    "enhanced_xgboost": [
+      "mean_elevation",
+      "min_elevation",
+      "mean_slope",
+      "distance_to_river",
+      "distance_to_waterbody",
+      "relative_elevation_1km",
+      "log_flow_accumulation_90m",
+      "twi_90m",
+      "river_edge_distance",
+      "any_water_edge_distance",
+      "built_up_fraction_2021"
+    ],
+    "enhanced_random_forest": [
+      "mean_elevation",
+      "min_elevation",
+      "mean_slope",
+      "distance_to_river",
+      "distance_to_waterbody",
+      "relative_elevation_1km",
+      "log_flow_accumulation_90m",
+      "twi_90m",
+      "river_edge_distance",
+      "any_water_edge_distance",
+      "built_up_fraction_2021"
+    ]
+  },
+  "metrics": {
+    "baseline_xgboost": {
+      "roc_auc": 0.6125204247722973,
+      "pr_auc_average_precision": 0.33095789700919165,
+      "precision": 0.29353680430879714,
+      "recall": 0.7093275488069414,
+      "f1": 0.41523809523809524,
+      "confusion_matrix_tn_fp_fn_tp": [
+        591,
+        787,
+        134,
+        327
+      ]
+    },
+    "enhanced_xgboost": {
+      "roc_auc": 0.6274206700269812,
+      "pr_auc_average_precision": 0.3501634508419353,
+      "precision": 0.3104106972301815,
+      "recall": 0.7049891540130152,
+      "f1": 0.43103448275862066,
+      "confusion_matrix_tn_fp_fn_tp": [
+        656,
+        722,
+        136,
+        325
+      ]
+    },
+    "enhanced_random_forest": {
+      "roc_auc": 0.5902121657657203,
+      "pr_auc_average_precision": 0.31214889001570667,
+      "precision": 0.2910244786944696,
+      "recall": 0.6963123644251626,
+      "f1": 0.41048593350383633,
+      "confusion_matrix_tn_fp_fn_tp": [
+        596,
+        782,
+        140,
+        321
+      ]
+    }
+  },
+  "score_interpretation": "uncalibrated susceptibility score for the 2015-event label"
+}

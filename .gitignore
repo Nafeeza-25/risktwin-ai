@@ -1,6 +1,30 @@
+# Virtual environments
 .venv/
+.venv-risk/
+
+# Python cache & testing
 __pycache__/
-node_modules/
-.env
 *.pyc
+.pytest_cache/
+
+# Node & Frontend
+node_modules/
+frontend/dist/
+*.tsbuildinfo
+
+# Sensitive credentials & environment files
+.env
+.env.*
+*.pem
+*.key
+*credential*
+*secret*
+
+# Raw datasets (too large for Git, fetched via ml/fetch_sources.py)
+data/raw/
+data/processed/*.gpkg
+
+# Temporary and local artifacts
+tmp/
 .DS_Store
+Thumbs.db
