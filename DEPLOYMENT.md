@@ -1,6 +1,6 @@
 # RiskTwin AI on Vercel
 
-Deploy from the **repository root** on the `master` branch. `vercel.json` sets the FastAPI preset, runs `npm ci` in `frontend`, builds with `npm run build`, and publishes `frontend/dist`. The root `app.py` mounts the existing inference API under `/api` and registers the Vite build as the React frontend. Python 3.12 and the inference-only package versions are pinned in `.python-version` and `requirements.txt`; the full model-training environment remains in `requirements-training.txt`.
+Deploy from the **repository root** on the `master` branch. `vercel.json` sets the FastAPI preset, installs the pinned Python runtime packages into Vercel's Python environment, runs `npm ci` in `frontend`, builds with `npm run build`, and publishes `frontend/dist`. The root `app.py` mounts the existing inference API under `/api` and registers the Vite build as the React frontend. Python 3.12 and the inference-only package versions are pinned in `.python-version` and `requirements.txt`; the full model-training environment remains in `requirements-training.txt`.
 
 ## Vercel project settings
 
