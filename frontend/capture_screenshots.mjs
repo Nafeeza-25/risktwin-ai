@@ -9,7 +9,7 @@ if (!existsSync(OUT_DIR)) {
 
 async function run() {
   const browser = await chromium.launch({
-    executablePath: 'C:\\Users\\Nafeeza\\AppData\\Local\\ms-playwright\\chromium-1243\\chrome-win64\\chrome.exe',
+    channel: process.env.PLAYWRIGHT_BROWSER_CHANNEL ?? 'chrome',
     headless: true,
     args: ['--enable-webgl', '--ignore-gpu-blocklist', '--use-gl=angle'],
   })

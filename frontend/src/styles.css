@@ -1520,6 +1520,49 @@ button {
   color: var(--text-dim);
 }
 
+.sim-comparison-bars {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px 14px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+}
+
+.sim-bar-row {
+  display: grid;
+  grid-template-columns: 64px minmax(0, 1fr) 52px;
+  align-items: center;
+  gap: 10px;
+}
+
+.sim-bar-label, .sim-bar-val {
+  font-size: 11px;
+  color: var(--text-body);
+}
+
+.sim-bar-val {
+  text-align: right;
+  font-family: var(--font-mono);
+}
+
+.sim-bar-track {
+  height: 8px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--border-subtle);
+}
+
+.sim-bar-fill {
+  height: 100%;
+  border-radius: inherit;
+  transition: width 350ms ease;
+}
+
+.sim-bar-fill.baseline {
+  background: var(--primary-blue);
+}
+
 .score-delta-summary-card {
   background: #ECFDF5;
   border: 1px solid #A7F3D0;
@@ -1541,6 +1584,36 @@ button {
 .delta-left p {
   font-size: 12px;
   color: #047857;
+}
+
+.category-shift-note {
+  display: block;
+  margin-top: 6px;
+  font-size: 11px;
+  color: var(--text-body);
+}
+
+.sim-chain-pill {
+  padding: 10px 12px;
+  border-radius: 6px;
+  background: var(--primary-blue-light);
+  color: var(--text-body);
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.stagger-item {
+  animation: stagger-in 300ms ease both;
+}
+
+@keyframes stagger-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .stagger-item { animation: none; }
+  .sim-bar-fill { transition: none; }
 }
 
 .text-emerald { color: #059669; }

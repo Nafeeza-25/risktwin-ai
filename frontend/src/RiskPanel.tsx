@@ -169,7 +169,7 @@ export default function RiskPanel({
 
             {/* Top 3 Drivers with icons matching Image 1 */}
             <div className="overview-driver-cards-list">
-              {drivers.slice(0, 3).map((driver) => {
+              {drivers.slice(0, 3).map((driver, index) => {
                 const isUpward = driver.shap >= 0
                 const IconComponent =
                   driver.name.includes('elevation') || driver.name.includes('slope')
@@ -179,7 +179,11 @@ export default function RiskPanel({
                     : Building
 
                 return (
-                  <div key={driver.name} className="overview-driver-item">
+                  <div
+                    key={driver.name}
+                    className="overview-driver-item stagger-item"
+                    style={{ animationDelay: `${index * 70}ms` }}
+                  >
                     <div className="driver-icon-circle">
                       <IconComponent size={16} />
                     </div>
@@ -294,8 +298,12 @@ export default function RiskPanel({
             </div>
 
             <div className="actions-card-list">
-              {actions.map((act) => (
-                <div key={act.id} className="action-card-item">
+              {actions.map((act, index) => (
+                <div
+                  key={act.id}
+                  className="action-card-item stagger-item"
+                  style={{ animationDelay: `${index * 60}ms` }}
+                >
                   <div className="action-badge-number">{act.id}</div>
                   <div className="action-text-block">
                     <div className="action-heading">{act.title}</div>

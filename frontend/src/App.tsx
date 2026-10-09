@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import MapView from './MapView'
 import RiskPanel from './RiskPanel'
+import { categoryForScore } from './types'
 import type {
   ActiveNavTab,
   CellProperties,
@@ -27,6 +28,8 @@ import {
   Database,
   ArrowRight,
   TrendingDown,
+  TrendingUp,
+  Minus,
   Layers,
   CheckCircle2,
 } from 'lucide-react'
@@ -635,7 +638,7 @@ export default function App() {
                   disabled={simulating || !selectedId}
                 >
                   {simulating ? <Clock size={16} className="spin" /> : <Play size={16} />}
-                  <span>{simulating ? 'Evaluating model…' : 'Run scenario on backend'}</span>
+                  <span>{simulating ? 'Running XGBoost inference…' : 'Run scenario on backend'}</span>
                 </button>
               </div>
 
@@ -643,54 +646,115 @@ export default function App() {
               <div className="scenario-results-box">
                 <h3 className="results-box-heading">FastAPI Model Inference Result</h3>
 
-                {simulation ? (
-                  <div className="simulation-live-result-wrap">
-                    <div className="comparison-tiles-pair">
-                      <div className="comp-tile before">
-                        <span className="comp-tile-label">Baseline Score</span>
-                        <strong className="comp-tile-score">
-                          {simulation.baseline_susceptibility.toFixed(4)}
-                        </strong>
-                        <span className="comp-tile-meta">
-                          Built-up: {(simulation.baseline_feature_value * 100).toFixed(1)}%
-                        </span>
-                      </div>
+                {simulation ? (() => {
+                  const isDecrease = simulation.score_change < -0.0005
+                  const isIncrease = simulation.score_change > 0.0005
+                  const deltaColor = isDecrease ? '#0D9488' : isIncrease ? '#DC2626' : '#64748B'
+                  const DeltaIcon = isDecrease ? TrendingDown : isIncrease ? TrendingUp : Minus
+                  const baseCat = categoryForScore(simulation.baseline_susceptibility)
+                  const scenCat = categoryForScore(simulation.scenario_susceptibility)
 
-                      <ArrowRight size={22} className="comp-arrow" />
+                  return (
+                    <div className="simulation-live-result-wrap">
+                      <div className="comparison-tiles-pair">
+                        <div className="comp-tile before">
+                          <span className="comp-tile-label">Baseline Score</span>
+                          <strong className="comp-tile-score">
+                            {simulation.baseline_susceptibility.toFixed(4)}
+                          </strong>
+                          <span className="comp-tile-meta">
+                            Built-up: {(simulation.baseline_feature_value * 100).toFixed(1)}% · {baseCat}
+                          </span>
+                        </div>
 
-                      <div className="comp-tile after">
-                        <span className="comp-tile-label">Altered Model Score</span>
-                        <strong className="comp-tile-score text-blue">
-                          {simulation.scenario_susceptibility.toFixed(4)}
-                        </strong>
-                        <span className="comp-tile-meta">
-                          Built-up: {(simulation.scenario_feature_value * 100).toFixed(1)}%
-                        </span>
-                      </div>
-                    </div>
+                        <ArrowRight size={22} className="comp-arrow" />
 
-                    <div className="score-delta-summary-card">
-                      <div className="delta-left">
-                        <TrendingDown size={20} className="text-emerald" />
-                        <div>
-                          <strong>Score Delta: {simulation.score_change.toFixed(4)}</strong>
-                          <p>
-                            Sensitivity outcome under {simIntensity}% built-up cover reduction.
-                          </p>
+                        <div className="comp-tile after">
+                          <span className="comp-tile-label">Altered Model Score</span>
+                          <strong className="comp-tile-score" style={{ color: deltaColor }}>
+                            {simulation.scenario_susceptibility.toFixed(4)}
+                          </strong>
+                          <span className="comp-tile-meta">
+                            Built-up: {(simulation.scenario_feature_value * 100).toFixed(1)}% · {scenCat}
+                          </span>
                         </div>
                       </div>
-                    </div>
 
-                    <div className="simulation-caveat-box">
-                      <Info size={15} />
-                      <p>
-                        <strong>Methodological Note:</strong> This scenario measures input sensitivity of
-                        the trained XGBoost model. It is an empirical indicator, not a validated 2D
-                        hydrodynamic drainage forecast.
-                      </p>
+                      {/* Animated Score Comparison Bars */}
+                      <div className="sim-comparison-bars">
+                        <div className="sim-bar-row">
+                          <span className="sim-bar-label">Baseline</span>
+                          <div className="sim-bar-track">
+                            <div
+                              className="sim-bar-fill baseline"
+                              style={{ width: `${Math.min(100, Math.max(5, simulation.baseline_susceptibility * 100))}%` }}
+                            />
+                          </div>
+                          <span className="sim-bar-val">{simulation.baseline_susceptibility.toFixed(4)}</span>
+                        </div>
+                        <div className="sim-bar-row">
+                          <span className="sim-bar-label">Scenario</span>
+                          <div className="sim-bar-track">
+                            <div
+                              className="sim-bar-fill scenario"
+                              style={{
+                                width: `${Math.min(100, Math.max(5, simulation.scenario_susceptibility * 100))}%`,
+                                backgroundColor: deltaColor,
+                              }}
+                            />
+                          </div>
+                          <span className="sim-bar-val" style={{ color: deltaColor }}>
+                            {simulation.scenario_susceptibility.toFixed(4)}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Score Delta with directional coloring */}
+                      <div
+                        className="score-delta-summary-card"
+                        style={{
+                          backgroundColor: isDecrease ? '#ECFDF5' : isIncrease ? '#FEF2F2' : '#F8FAFC',
+                          borderColor: isDecrease ? '#A7F3D0' : isIncrease ? '#FECACA' : '#CBD5E1',
+                        }}
+                      >
+                        <div className="delta-left">
+                          <DeltaIcon size={20} style={{ color: deltaColor }} />
+                          <div>
+                            <strong style={{ color: deltaColor }}>
+                              Score Delta: {simulation.score_change >= 0 ? `+${simulation.score_change.toFixed(4)}` : simulation.score_change.toFixed(4)}
+                            </strong>
+                            <p style={{ color: deltaColor }}>
+                              {isDecrease
+                                ? `Model susceptibility reduced by ${Math.abs(simulation.score_change).toFixed(4)} under ${simIntensity}% green-cover conversion.`
+                                : isIncrease
+                                ? `Model susceptibility increased under this perturbation.`
+                                : `Negligible marginal score shift under this conversion intensity.`}
+                            </p>
+                            <span className="category-shift-note">
+                              {baseCat === scenCat
+                                ? `Tier remains ${baseCat} (incremental sensitivity shift within existing risk band).`
+                                : `Risk tier shifted from ${baseCat} to ${scenCat}.`}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Concise visual explanation chain */}
+                      <div className="sim-chain-pill">
+                        <span><strong>Process:</strong> Land-cover input changed → Saved XGBoost model rerun via FastAPI → Susceptibility scores compared.</span>
+                      </div>
+
+                      <div className="simulation-caveat-box">
+                        <Info size={15} />
+                        <p>
+                          <strong>Methodological Note:</strong> This scenario measures input sensitivity of
+                          the trained XGBoost model. It is an empirical indicator, not a validated 2D
+                          hydrodynamic drainage forecast.
+                        </p>
+                      </div>
                     </div>
-                  </div>
-                ) : (
+                  )
+                })() : (
                   <div className="scenario-idle-state">
                     {simulating ? (
                       <div className="idle-message">
