@@ -8,16 +8,5 @@
       "includeFiles": "{backend/**,outputs/chennai_best_v2.joblib,outputs/chennai_iteration1_metrics.json,data/processed/chennai_training_table_v2.csv}",
       "excludeFiles": "{tests/**,ml/**,frontend/node_modules/**,frontend/screenshots/**,data/raw/**,outputs/baseline/**,outputs/chennai_susceptibility_v2.geojson}"
     }
-  },
-  "rewrites": [
-    { "source": "/api/cells", "destination": "/cells.geojson" }
-  ],
-  "headers": [
-    {
-      "source": "/api/cells",
-      "headers": [
-        { "key": "Content-Type", "value": "application/geo+json; charset=utf-8" }
-      ]
-    }
-  ]
+  }
 }

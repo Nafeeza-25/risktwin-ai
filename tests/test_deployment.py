@@ -22,6 +22,13 @@ def test_vercel_app_serves_real_api_under_public_prefix():
     assert health.status_code == 200
     assert health.json()["cells"] == 7227
 
+    redirect = client.get("/api/cells", follow_redirects=False)
+    assert redirect.status_code == 307
+    assert redirect.headers["location"] == "/cells.geojson"
+    layer = client.get("/api/cells")
+    assert layer.status_code == 200
+    assert len(layer.json()["features"]) == 7227
+
     evidence = client.get("/api/evidence")
     assert evidence.status_code == 200
     assert evidence.json()["holdout_cells"] == 1839
@@ -43,9 +50,7 @@ def test_vercel_static_layer_and_routing_are_real():
     assert config["outputDirectory"] == "frontend/dist"
     assert "installCommand" not in config
     assert config["buildCommand"].startswith("cd frontend && npm ci && npm run build")
-    assert config["rewrites"][0] == {
-        "source": "/api/cells", "destination": "/cells.geojson"
-    }
+    assert not config.get("rewrites")
 
     source = ROOT / "outputs/chennai_susceptibility_v2.geojson"
     staged = ROOT / "frontend/dist/cells.geojson"
