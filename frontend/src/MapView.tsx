@@ -13,17 +13,17 @@ maplibregl.setWorkerUrl(workerUrl)
 const LIGHT_STREET_STYLE: StyleSpecification = {
   version: 8,
   sources: {
-    carto: {
+    osm: {
       type: 'raster',
       tiles: [
-        'https://basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
+        'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
       ],
       tileSize: 256,
-      attribution: '© OpenStreetMap contributors, © CARTO',
+      attribution: '© OpenStreetMap contributors',
     },
   },
   layers: [
-    { id: 'carto-layer', type: 'raster', source: 'carto', paint: { 'raster-opacity': 0.88 } },
+    { id: 'osm-layer', type: 'raster', source: 'osm', paint: { 'raster-opacity': 0.88 } },
   ],
 }
 
