@@ -41,8 +41,8 @@ def test_vercel_app_serves_real_api_under_public_prefix():
 def test_vercel_static_layer_and_routing_are_real():
     config = json.loads((ROOT / "vercel.json").read_text(encoding="utf-8"))
     assert config["outputDirectory"] == "frontend/dist"
-    assert "uv pip install --python .vercel/python/.venv/bin/python -r requirements.txt" in config["installCommand"]
-    assert "cd frontend && npm ci" in config["installCommand"]
+    assert "installCommand" not in config
+    assert config["buildCommand"].startswith("cd frontend && npm ci && npm run build")
     assert config["rewrites"][0] == {
         "source": "/api/cells", "destination": "/cells.geojson"
     }
