@@ -1,8 +1,10 @@
 # RiskTwin AI — Chennai flood susceptibility dashboard
 
+For the repository-root Vercel setup and public verification checklist, see [DEPLOYMENT.md](DEPLOYMENT.md).
+
 ## Run the judge demo locally
 
-The repository already contains the scored Chennai layer and saved XGBoost model. Start these in two PowerShell terminals from the repository root. Install the existing Python requirements in `.venv-risk` and run `npm install` in `frontend` once if those environments are not yet prepared.
+The repository already contains the scored Chennai layer and saved XGBoost model. Start these in two PowerShell terminals from the repository root. Install `requirements-training.txt` in `.venv-risk` and run `npm ci` in `frontend` once if those environments are not yet prepared.
 
 **Backend:**
 
@@ -32,7 +34,7 @@ Use Python 3.12 from the repository directory. This workspace already has `.venv
 
 ```powershell
 python -m venv .venv
-.\.venv\Scripts\python.exe -m pip install -r requirements.txt
+.\.venv\Scripts\python.exe -m pip install -r requirements-training.txt
 .\.venv\Scripts\python.exe ml/fetch_sources.py
 .\.venv\Scripts\python.exe ml/prepare_grid.py
 .\.venv\Scripts\python.exe ml/build_features.py

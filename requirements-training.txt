@@ -1,0 +1,16 @@
+geopandas
+pandas
+numpy
+shapely
+rasterio
+scikit-learn
+xgboost
+osmnx
+pyogrio
+requests
+pyflwdir
+shap
+pytest
+fastapi
+uvicorn
+httpx

@@ -2,7 +2,8 @@ import { chromium } from 'playwright'
 import { mkdirSync, existsSync } from 'node:fs'
 import { join } from 'node:path'
 
-const OUT_DIR = './screenshots/final-review'
+const OUT_DIR = process.env.RISKTWIN_SCREENSHOTS_DIR ?? './screenshots/final-review'
+const origin = process.env.RISKTWIN_URL ?? 'http://127.0.0.1:5173'
 if (!existsSync(OUT_DIR)) {
   mkdirSync(OUT_DIR, { recursive: true })
 }
@@ -27,7 +28,7 @@ async function run() {
     }
   })
 
-  await page.goto('http://127.0.0.1:5173/', { waitUntil: 'networkidle' })
+  await page.goto(origin, { waitUntil: 'networkidle' })
   // Wait for map and tiles to settle
   await page.waitForTimeout(3000)
 
@@ -111,7 +112,7 @@ async function run() {
     viewport: { width: 1366, height: 768 },
   })
   const pageSmall = await contextSmall.newPage()
-  await pageSmall.goto('http://127.0.0.1:5173/', { waitUntil: 'networkidle' })
+  await pageSmall.goto(origin, { waitUntil: 'networkidle' })
   await pageSmall.waitForTimeout(2000)
 
   await pageSmall.screenshot({ path: join(OUT_DIR, 'explore_map_1366x768.png') })

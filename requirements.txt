@@ -1,16 +1,9 @@
-geopandas
-pandas
-numpy
-shapely
-rasterio
-scikit-learn
-xgboost
-osmnx
-pyogrio
-requests
-pyflwdir
-shap
-pytest
-fastapi
-uvicorn
-httpx
+# Inference-only dependencies. Match the Python 3.12 environment that saved
+# outputs/chennai_best_v2.joblib; training dependencies are separate.
+fastapi==0.143.0
+joblib==1.6.0
+numpy==2.5.3
+pandas==3.0.6
+scikit-learn==1.9.1
+scipy==1.18.1
+xgboost-cpu==3.4.1
