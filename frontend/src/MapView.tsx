@@ -70,9 +70,11 @@ interface HoverInfo {
   category: string
 }
 
-const CHENNAI_BOUNDS: [[number, number], [number, number]] = [
-  [80.11, 12.83],
-  [80.35, 13.25],
+// Exact bounding box of the 7,227 Chennai grid cells: [80.140, 12.852] to [80.331, 13.235]
+// Tight padding ensures the flood susceptibility layer prominently frames the viewport
+const CHENNAI_EXACT_BOUNDS: [[number, number], [number, number]] = [
+  [80.136, 12.847],
+  [80.335, 13.239],
 ]
 
 export default function MapView({
@@ -84,13 +86,18 @@ export default function MapView({
 }: Props) {
   const container = useRef<HTMLDivElement>(null)
   const mapRef = useRef<MapLibreMap | null>(null)
+  const markerRef = useRef<maplibregl.Marker | null>(null)
   const [hoverInfo, setHoverInfo] = useState<HoverInfo | null>(null)
   const [basemap, setBasemap] = useState<'street' | 'satellite'>('street')
   const [searchQuery, setSearchQuery] = useState('')
   const [layerDropdownOpen, setLayerDropdownOpen] = useState(false)
 
   const handleRecenter = useCallback(() => {
-    mapRef.current?.fitBounds(CHENNAI_BOUNDS, { padding: 40, duration: 600 })
+    mapRef.current?.fitBounds(CHENNAI_EXACT_BOUNDS, {
+      padding: { top: 35, bottom: 35, left: 25, right: 25 },
+      duration: 600,
+      maxZoom: 12.8,
+    })
   }, [])
 
   const handleZoomIn = useCallback(() => {
@@ -112,14 +119,57 @@ export default function MapView({
     }
   }
 
+  // Update or render the prominent vector Location Pin Marker matching Image 1
+  const updateMarker = useCallback((cellId: string | null) => {
+    const map = mapRef.current
+    if (!map) return
+
+    if (!cellId) {
+      if (markerRef.current) {
+        markerRef.current.remove()
+        markerRef.current = null
+      }
+      return
+    }
+
+    const feature = layer.features.find((f) => f.properties.cell_id === cellId)
+    if (!feature?.properties?.longitude || !feature?.properties?.latitude) {
+      if (markerRef.current) {
+        markerRef.current.remove()
+        markerRef.current = null
+      }
+      return
+    }
+
+    const coords: [number, number] = [feature.properties.longitude, feature.properties.latitude]
+
+    if (!markerRef.current) {
+      const el = document.createElement('div')
+      el.className = 'selected-location-pin-marker'
+      el.innerHTML = `
+        <div class="pin-marker-inner" title="Selected Location: ${cellId}">
+          <svg width="26" height="34" viewBox="0 0 24 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M12 0C5.37258 0 0 5.37258 0 12C0 19.5 12 32 12 32C12 32 24 19.5 24 12C24 5.37258 18.6274 0 12 0Z" fill="#2563EB"/>
+            <circle cx="12" cy="11" r="4.5" fill="#FFFFFF"/>
+          </svg>
+        </div>
+      `
+      markerRef.current = new maplibregl.Marker({ element: el, anchor: 'bottom' })
+        .setLngLat(coords)
+        .addTo(map)
+    } else {
+      markerRef.current.setLngLat(coords)
+    }
+  }, [layer])
+
   // Initialize MapLibre
   useEffect(() => {
     if (!container.current) return
     const map = new maplibregl.Map({
       container: container.current,
       style: basemap === 'street' ? LIGHT_STREET_STYLE : SATELLITE_STYLE,
-      center: [80.24, 13.06],
-      zoom: 11.2,
+      center: [80.236, 13.044],
+      zoom: 11.8,
       minZoom: 9,
       maxZoom: 17,
       attributionControl: false,
@@ -168,28 +218,40 @@ export default function MapView({
         },
       })
 
-      // Selected Cell Outline Halo (Primary Blue #2563EB)
+      // Selected Cell Tint Fill (Translucent blue overlay)
+      map.addLayer({
+        id: 'selected-cell-fill-highlight',
+        type: 'fill',
+        source: 'susceptibility',
+        filter: ['==', ['get', 'cell_id'], selectedId ?? ''],
+        paint: {
+          'fill-color': '#2563EB',
+          'fill-opacity': 0.32,
+        },
+      })
+
+      // Selected Cell Outer Halo (Thick #1E40AF stroke)
       map.addLayer({
         id: 'selected-cell-halo',
         type: 'line',
         source: 'susceptibility',
-        filter: ['==', ['get', 'cell_id'], ''],
+        filter: ['==', ['get', 'cell_id'], selectedId ?? ''],
         paint: {
-          'line-color': '#2563EB',
-          'line-width': 4,
-          'line-opacity': 0.85,
+          'line-color': '#1E40AF',
+          'line-width': 5.5,
+          'line-opacity': 0.95,
         },
       })
 
-      // Selected Cell Inner Stroke
+      // Selected Cell Inner Crisp White Stroke
       map.addLayer({
         id: 'selected-cell',
         type: 'line',
         source: 'susceptibility',
-        filter: ['==', ['get', 'cell_id'], ''],
+        filter: ['==', ['get', 'cell_id'], selectedId ?? ''],
         paint: {
-          'line-color': '#ffffff',
-          'line-width': 2,
+          'line-color': '#FFFFFF',
+          'line-width': 2.2,
           'line-opacity': 1,
         },
       })
@@ -203,7 +265,8 @@ export default function MapView({
           if (feature?.properties?.longitude && feature?.properties?.latitude) {
             map.easeTo({
               center: [feature.properties.longitude, feature.properties.latitude],
-              duration: 400,
+              duration: 450,
+              zoom: Math.max(map.getZoom(), 12.8),
             })
           }
         }
@@ -229,35 +292,57 @@ export default function MapView({
         map.getCanvas().style.cursor = ''
       })
 
-      map.fitBounds(CHENNAI_BOUNDS, { padding: 36, duration: 0 })
+      // Immediately render location marker for initial selected cell
+      updateMarker(selectedId)
+
+      // Prominently frame the Chennai susceptibility study area
+      map.fitBounds(CHENNAI_EXACT_BOUNDS, {
+        padding: { top: 35, bottom: 35, left: 25, right: 25 },
+        duration: 0,
+        maxZoom: 12.8,
+      })
     })
 
     return () => {
+      if (markerRef.current) {
+        markerRef.current.remove()
+        markerRef.current = null
+      }
       map.remove()
       mapRef.current = null
     }
-  }, [basemap, layer, onSelect, showSusceptibilityGrid])
+  }, [basemap, layer, onSelect, showSusceptibilityGrid, updateMarker])
 
-  // Update selected cell highlight
+  // Update selected cell highlight and location pin marker dynamically
   useEffect(() => {
     const map = mapRef.current
-    if (map?.getLayer('selected-cell')) {
-      const filter: maplibregl.FilterSpecification = ['==', ['get', 'cell_id'], selectedId ?? '']
-      map.setFilter('selected-cell', filter)
-      map.setFilter('selected-cell-halo', filter)
+    if (!map) return
 
-      if (selectedId) {
-        const feature = layer.features.find((f) => f.properties.cell_id === selectedId)
-        if (feature?.properties?.longitude && feature?.properties?.latitude) {
-          map.easeTo({
-            center: [feature.properties.longitude, feature.properties.latitude],
-            duration: 500,
-            zoom: Math.max(map.getZoom(), 12.5),
-          })
-        }
+    const cellFilter: maplibregl.FilterSpecification = ['==', ['get', 'cell_id'], selectedId ?? '']
+
+    if (map.getLayer('selected-cell')) {
+      map.setFilter('selected-cell', cellFilter)
+    }
+    if (map.getLayer('selected-cell-halo')) {
+      map.setFilter('selected-cell-halo', cellFilter)
+    }
+    if (map.getLayer('selected-cell-fill-highlight')) {
+      map.setFilter('selected-cell-fill-highlight', cellFilter)
+    }
+
+    updateMarker(selectedId)
+
+    if (selectedId) {
+      const feature = layer.features.find((f) => f.properties.cell_id === selectedId)
+      if (feature?.properties?.longitude && feature?.properties?.latitude) {
+        map.easeTo({
+          center: [feature.properties.longitude, feature.properties.latitude],
+          duration: 450,
+          zoom: Math.max(map.getZoom(), 12.8),
+        })
       }
     }
-  }, [selectedId, layer])
+  }, [selectedId, layer, updateMarker])
 
   // Update Risk Filters (Critical, High, Moderate, Low)
   useEffect(() => {

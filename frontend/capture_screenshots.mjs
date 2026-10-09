@@ -28,29 +28,26 @@ async function run() {
   })
 
   await page.goto('http://127.0.0.1:5173/', { waitUntil: 'networkidle' })
-  await page.waitForTimeout(2000)
+  // Wait for map and tiles to settle
+  await page.waitForTimeout(3000)
 
-  // 1. Explore Map - default view (unselected state)
-  const closeBtn = page.locator('button.btn-close-inspector')
-  if (await closeBtn.isVisible()) {
-    await closeBtn.click()
-    await page.waitForTimeout(500)
-  }
+  // 1. Explore Map - Full Framed Chennai Study Area with Initial Selected Cell & Pin Marker
   await page.screenshot({ path: join(OUT_DIR, '01_explore_map_default_1536x864.png') })
   console.log('Captured 01_explore_map_default_1536x864.png')
 
-  // Select C0110_0040
-  const demoBtn = page.locator('#btn-inspect-demo-hotspot')
-  if (await demoBtn.isVisible()) {
-    await demoBtn.click()
-    await page.waitForTimeout(800)
-  }
-
-  // 2. Selected Cell - Overview
+  // 2. Selected Cell - Overview (Click Overview tab, verify marker & halo)
   await page.click('button.inspector-tab-btn:has-text("Overview")')
-  await page.waitForTimeout(500)
+  await page.waitForTimeout(800)
   await page.screenshot({ path: join(OUT_DIR, '02_selected_cell_overview_1536x864.png') })
   console.log('Captured 02_selected_cell_overview_1536x864.png')
+
+  // Test Interactive Click / Selection on Map: Search for a different cell
+  const searchInput = page.locator('input.map-search-input')
+  if (await searchInput.isVisible()) {
+    await searchInput.fill('C0001_0035')
+    await searchInput.press('Enter')
+    await page.waitForTimeout(1000)
+  }
 
   // 3. Selected Cell - Drivers
   await page.click('button.inspector-tab-btn:has-text("Drivers")')

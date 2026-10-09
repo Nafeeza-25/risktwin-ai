@@ -604,6 +604,40 @@ button {
   color: var(--primary-blue);
 }
 
+.map-tool-btn.map-tool-recenter:hover {
+  background: var(--primary-blue-light);
+  border-color: var(--primary-blue-border);
+  color: var(--primary-blue);
+}
+
+/* Selected Location Pin Marker matching Image 1 */
+.selected-location-pin-marker {
+  cursor: pointer;
+  pointer-events: none;
+  filter: drop-shadow(0 4px 8px rgba(37, 99, 235, 0.45));
+  transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  transform-origin: bottom center;
+  z-index: 15;
+}
+
+.selected-location-pin-marker .pin-marker-inner {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: markerDropIn 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes markerDropIn {
+  0% {
+    transform: translateY(-12px) scale(0.8);
+    opacity: 0;
+  }
+  100% {
+    transform: translateY(0) scale(1);
+    opacity: 1;
+  }
+}
+
 /* Bottom Left Floating Legend matching Image 1 */
 .map-floating-legend {
   position: absolute;
